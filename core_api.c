@@ -75,6 +75,8 @@ static int *fw_fps_counter = (int *)0x80c0b5dc;
 static char *fw_fps_counter_format = (int *)0x8099bdf0;	// "%2d/%2d"
 static void fps_counter_enable(bool enable);
 
+#define KEYMAP_SIZE 12
+
 static bool gb_temporary_osd = false;
 
 struct retro_core_t core_exports = {
@@ -111,6 +113,48 @@ int create_dir(const char *path) {
 		xlog("filepath: creating %s\n", path);
         fs_mkdir(path, 0755);
     }
+}
+
+// Loads the keymap configuration for the game.
+void load_keymap(const char *s_game_filepath)
+{
+	struct retro_system_info sysinfo;
+	retro_get_system_info(&sysinfo);
+
+	char kmp_filepath[MAXPATH];
+
+	char basename[MAXPATH];
+	fill_pathname_base(basename, s_game_filepath, sizeof(basename));
+	path_remove_extension(basename);
+
+	// Rom keymap
+	snprintf(kmp_filepath, sizeof(kmp_filepath), "%s/%s/keymaps/%s.opt", CONFIG_DIRECTORY, sysinfo.library_name, basename);
+	xlog("Checking keymap in %s...\n", kmp_filepath);
+
+	// if ROM keymap doesn't exist load Core keymap
+	if (fs_access(kmp_filepath, 0) != 0) {
+		snprintf(kmp_filepath, sizeof(kmp_filepath), "%s/%s/%s.kmp", CONFIG_DIRECTORY, sysinfo.library_name, sysinfo.library_name);
+		xlog("Checking keymap in %s...\n", kmp_filepath);
+	}
+
+	// if Core keymap doesn't exist load Multicore keymap
+	if (fs_access(kmp_filepath, 0) != 0) {
+		snprintf(kmp_filepath, sizeof(kmp_filepath), "%s/multicore.kmp", CONFIG_DIRECTORY);
+		xlog("Checking keymap in %s...\n", kmp_filepath);
+	}
+
+	// if no keymap, just return
+	if (fs_access(kmp_filepath, 0) != 0) return;
+
+	uint32_t keymap[KEYMAP_SIZE];
+	FILE *h_file = NULL;
+	h_file = fopen(kmp_filepath, "rb");
+
+	size_t elements_read = fread(keymap, sizeof(uint32_t), KEYMAP_SIZE, h_file);
+	fclose(h_file);
+
+    set_keymap(keymap, 8);
+	xlog("Keymap file %s loaded\n", kmp_filepath);
 }
 
 void build_srm_filepath(char *filepath, size_t size, const char *game_filepath, const char *extension, size_t extension_size) {
@@ -455,6 +499,9 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 	{
 		xlog("retro_load_game ok\n");
 		
+		// load keymap
+		load_keymap(s_game_filepath);
+
 		video_options(s_core_config);
 
 		// show FPS?
