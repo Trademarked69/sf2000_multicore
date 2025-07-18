@@ -70,10 +70,13 @@ static bool g_osd_small_messages = false;
 
 static void dummy_retro_run(void);
 
-static int *fw_fps_counter_enable = (int *)0x80c0b5e0;
+static int *fw_fps_counter_enable = (int *)0x80c0b5e0;	// displayfps
 static int *fw_fps_counter = (int *)0x80c0b5dc;
-static char *fw_fps_counter_format = (int *)0x8099bdf0;	// "%2d/%2d"
+static char *fw_fps_counter_format = (char *)0x8099bdf0;	// "%2d/%2d"
 static void fps_counter_enable(bool enable);
+
+void build_game_config_filepath(char *filepath, size_t size, const char *game_filepath, const char *library_name);
+void config_add_file(const char *filepath);
 
 #define KEYMAP_SIZE 12
 
@@ -757,7 +760,7 @@ int state_save(const char *frontend_state_filepath)
 	return 1;
 }
 
-void build_game_config_filepath(char *filepath, size_t size, const char *game_filepath, char library_name)
+void build_game_config_filepath(char *filepath, size_t size, const char *game_filepath, const char *library_name)
 {
 	char basename[MAXPATH];
 	fill_pathname_base(basename, game_filepath, sizeof(basename));

@@ -75,7 +75,7 @@ void load_and_run_core(const char *file_path, int load_state)
 			*fileContent = '/';
 			FILE *fp = fopen(file_path, "rb");
 			if(!fp) {
-				lcd_bsod("\n COULD NOT\n OPEN STUB\n FILE :-(\n ");
+				lcd_bsod("\n COULD NOT\n OPEN STUB\n FILE :-(\n %s\n ", file_path);
 			}
 			size_t bytesRead = fw_fread(fileContent+1, 1, MAXPATH - 3, fp);
 			if(bytesRead < MAXPATH - 3){
