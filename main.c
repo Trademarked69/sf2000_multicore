@@ -63,6 +63,17 @@ void load_and_run_core(const char *file_path, int load_state)
 	// the expected template for file_path is - [corename];[rom filename].gba
 	const char *corename;
 	const char *filename;
+
+    unsigned short txt_color = 0xffff;  // white
+    unsigned short bg_color = 0x0000;   // black
+
+    FILE *fp = fopen("/mnt/sda1/bios/colors.bin", "rb");
+    if (fp) {
+    	fw_fread(&txt_color, sizeof(unsigned short), 1, fp);
+   		fw_fread(&bg_color, sizeof(unsigned short), 1, fp);
+    	fclose(fp);
+	}
+
 	if (!parse_filename(file_path, &corename, &filename)) {
 		char* dot = strrchr(file_path, '.');
 		bool isStub = false;
@@ -88,7 +99,7 @@ void load_and_run_core(const char *file_path, int load_state)
 		}
 		if(!isStub){
 			//xlog("file not MC stub: calling run_gba\n");
-			dbg_show_noblock(0x00, "\n STOCK\n\n %s\n\n ", file_path); // black
+			dbg_show_noblock(txt_color, bg_color, "\n STOCK\n\n %s\n\n ", file_path); 
 			run_gba(file_path, load_state);
 			return;
 		}
@@ -96,7 +107,7 @@ void load_and_run_core(const char *file_path, int load_state)
 
 	// this will show a loading screen when loading a rom.
 	// it will act as an indicator that a custom core and not a stock emulator is running.
-	dbg_show_noblock(0x00,"\n MULTICORE\n\n %s\n\n %s \n\n ", corename, filename); // black
+	dbg_show_noblock(txt_color, bg_color,"\n MULTICORE\n\n %s\n\n %s \n\n ", corename, filename);
 
 	void *core_load_addr = (void*)0x87000000;
 
