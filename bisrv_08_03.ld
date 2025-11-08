@@ -153,6 +153,8 @@ gfn_frameskip	= 0x80c1083c;
 g_run_file_size	= 0x80c107d8;
 gp_buf_64m	= 0x80c10834;
 
+gs_run_game_file = 0x8099ba8c;
+
 /* HiChip's hardware wired to LCD for UARTless debug.c */
 PINMUXL	= 0xb88004a0;
 PINMUXT	= 0xb8800500;

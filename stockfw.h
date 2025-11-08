@@ -83,4 +83,6 @@ extern void * gp_buf_64m;
 extern uint32_t g_joy_task_state;
 extern uint32_t g_joy_state;
 
+extern const char *gs_run_game_file;
+
 #endif

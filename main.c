@@ -74,7 +74,11 @@ void load_and_run_core(const char *file_path, int load_state)
     	fclose(fp);
 	}
 
-	if (!parse_filename(file_path, &corename, &filename)) {
+	// Workaround for loading a core from within a core, put the directory into gs_run_game_file
+	if (parse_filename(gs_run_game_file, &corename, &filename)) {
+		full_cache_flush();
+		sprintf(gs_run_game_file, "%s;%s.GBA", corename, filename);
+	} else if (!parse_filename(file_path, &corename, &filename)) { // Load as normal
 		char* dot = strrchr(file_path, '.');
 		bool isStub = false;
 		if(
