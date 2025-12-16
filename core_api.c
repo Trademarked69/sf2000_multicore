@@ -52,6 +52,7 @@ int dummy_run_emulator_menu(void) {
 #define HOTKEYDECREASESTATE 0x9080 // press L + R + LEFT
 #define HOTKEYINCREASEDARKEN 0x9010 // press L + R + UP
 #define HOTKEYDECREASEDARKEN 0x9040 // press L + R + DOWN
+#define HOTKEYSWAPPLAYER 45056 // press L + R + A
 
 #define MAXPATH 	255
 #define SYSTEM_DIRECTORY	"/mnt/sda1/bios"
@@ -117,6 +118,9 @@ static uint16_t* rgb565_darken_buffer = NULL;
 static bool g_enable_darken_filter = true;
 static bool g_enable_darken_hotkey = true;
 static int buffer_prev_width = 0, buffer_prev_height = 0, g_darken_percentage = 0;
+
+static bool g_swap_controllers = false;
+static bool g_enable_ctrlswp_hotkey = false;
 
 // BMP Header Structures
 #pragma pack(push, 1)
@@ -469,6 +473,24 @@ void wrap_retro_run(void) {
             }
             break;
                 
+		case HOTKEYSWAPPLAYER:
+            // Swap Controller
+			g_joy_state = 0; 
+			if (os_get_tick_count() - g_osd_time > 1000 && g_enable_ctrlswp_hotkey) {
+				if (g_swap_controllers) {
+					g_swap_controllers = false;
+					g_osd_small_messages ? sprintf(osd_message, "P1") : sprintf(osd_message, "Player 1");
+				} else {
+					g_swap_controllers = true;
+					g_osd_small_messages ? sprintf(osd_message, "P2") : sprintf(osd_message, "Player 2");
+
+				}
+				
+                show_osd_message(osd_message);
+                slot_delay_time = os_get_tick_count();
+            }
+            break;
+
         default:
             break;
 	}
@@ -640,23 +662,26 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 		// show FPS?
 		config_get_bool(s_core_config, "sf2000_show_fps", &g_show_fps);
 
-		// Darkening filter?
-		config_get_bool(s_core_config, "sf2000_enable_darken_filter", &g_enable_darken_filter);
-		config_get_bool(s_core_config, "sf2000_enable_darken_hotkey", &g_enable_darken_hotkey);
-		config_get_uint(s_core_config, "sf2000_darken_percentage", &g_darken_percentage);
-
 		// per state srm?
 		config_get_bool(s_core_config, "sf2000_per_state_srm", &g_per_state_srm);
+		// per core srm?
+		config_get_bool(s_core_config, "sf2000_per_core_srm", &g_per_core_srm);
 
 		// Hotkey settings
 		config_get_bool(s_core_config, "sf2000_enable_savestate_hotkeys", &g_enable_savestate_hotkeys);
 		config_get_bool(s_core_config, "sf2000_enable_screenshot_hotkey", &g_enable_screenshot_hotkey);
 		config_get_bool(s_core_config, "sf2000_enable_osd", &g_enable_osd);
 		config_get_bool(s_core_config, "sf2000_osd_small_messages", &g_osd_small_messages);
-
-		// per core srm?
-		config_get_bool(s_core_config, "sf2000_per_core_srm", &g_per_core_srm);
 		
+		// Darkening filter?
+		config_get_bool(s_core_config, "sf2000_enable_darken_filter", &g_enable_darken_filter);
+		config_get_bool(s_core_config, "sf2000_enable_darken_hotkey", &g_enable_darken_hotkey);
+		config_get_uint(s_core_config, "sf2000_darken_percentage", &g_darken_percentage);
+
+		// controller swap? 
+		config_get_bool(s_core_config, "sf2000_swap_controllers", &g_swap_controllers);
+		config_get_bool(s_core_config, "sf2000_enable_ctrlswp_hotkey", &g_enable_ctrlswp_hotkey);
+
 		// make sure the first two controllers are configured as gamepads
 		retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
 		retro_set_controller_port_device(1, RETRO_DEVICE_JOYPAD);
@@ -1035,9 +1060,10 @@ static void enable_xrgb8888_support()
 
 static int16_t wrap_input_state_cb(unsigned port, unsigned device, unsigned index, unsigned id)
 {
-	if ((port == 0 || port == 1) && (device == RETRO_DEVICE_JOYPAD))
-		return retro_input_state_cb(port, device, index, id);
-	else
+	if ((port == 0 || port == 1) && (device == RETRO_DEVICE_JOYPAD)) {
+		unsigned logical_port = (g_swap_controllers && (port <= 1)) ? (port ^ 1) : port;
+		return retro_input_state_cb(logical_port, device, index, id);
+	} else
 		return 0;
 }
 
