@@ -27,23 +27,31 @@ void wrap_retro_unload_game(void);
 
 struct retro_game_info saved_game_info;
 
-// Patch pause menu to always return 0 
+static bool g_enable_frogui_patch = false;
+// Patch pause menu
 int dummy_run_emulator_menu(void) {
 	save_srm(0); // Save before loading the pause menu (incase of crashes + replace savesrm hotkey)
 	unsigned int run_emulator_menu_response = run_emulator_menu();
-	if (run_emulator_menu_response == 1) { // Replace quit button with reset core since quit button is broken when using the menu core
-		wrap_retro_unload_game();
-		wrap_retro_load_game(&saved_game_info);
-	}
-	return 0;
+	if (g_enable_frogui_patch) {
+		if (run_emulator_menu_response == 1) { // Replace quit button with reset core since quit button is broken when using the menu core
+			wrap_retro_unload_game();
+			wrap_retro_load_game(&saved_game_info);
+		}
+		return 0;
+	} else return run_emulator_menu_response;
 }
 
 // Hotkeys
+// Up = 10, Down = 40, Left = 80, Right = 20
+// Select = 1, Start = 8
+// A = 2000, B = 4000. X = 400, Y = 800, L = 1000, R = 8000
 #define HOTKEYSCREENSHOT 0x9008 // press L + R + Start
 #define HOTKEYSAVESTATE 0x9400 // press L + R + X
 #define HOTKEYLOADSTATE 0x9800 // press L + R + Y
 #define HOTKEYINCREASESTATE 0x9020 // press L + R + Right
 #define HOTKEYDECREASESTATE 0x9080 // press L + R + LEFT
+#define HOTKEYINCREASEDARKEN 0x9010 // press L + R + UP
+#define HOTKEYDECREASEDARKEN 0x9040 // press L + R + DOWN
 
 #define MAXPATH 	255
 #define SYSTEM_DIRECTORY	"/mnt/sda1/bios"
@@ -83,6 +91,7 @@ static bool g_xrgb888 = false;
 static int16_t wrap_input_state_cb(unsigned port, unsigned device, unsigned index, unsigned id);
 
 static bool g_show_fps = false;
+static bool g_fps_counter = false;
 static void frameskip_cb(BOOL flag);
 static bool g_per_state_srm = false;
 static bool g_per_core_srm = false;
@@ -96,7 +105,6 @@ static void dummy_retro_run(void);
 static int *fw_fps_counter_enable = (int *)0x80c0b5e0;	// displayfps
 static int *fw_fps_counter = (int *)0x80c0b5dc;
 static char *fw_fps_counter_format = (char *)0x8099bdf0;	// "%2d/%2d"
-static void fps_counter_enable(bool enable);
 
 void build_game_config_filepath(char *filepath, size_t size, const char *game_filepath, const char *library_name);
 void config_add_file(const char *filepath);
@@ -104,6 +112,11 @@ void config_add_file(const char *filepath);
 #define KEYMAP_SIZE 12
 
 static bool gb_temporary_osd = false;
+
+static uint16_t* rgb565_darken_buffer = NULL;
+static bool g_enable_darken_filter = true;
+static bool g_enable_darken_hotkey = true;
+static int buffer_prev_width = 0, buffer_prev_height = 0, g_darken_percentage = 0;
 
 // BMP Header Structures
 #pragma pack(push, 1)
@@ -349,7 +362,7 @@ char osd_message[MAXPATH];
 int show_osd_message(const char *message) {
 	if (g_enable_osd) {
 		gb_temporary_osd = true;
-		if (!g_show_fps) *fw_fps_counter_enable = 1; // Don't change fps if fps is enabled
+		if (!g_fps_counter) *fw_fps_counter_enable = 1; // Don't change fps if fps is enabled
 		sprintf(fw_fps_counter_format, message);
 		g_osd_time = os_get_tick_count();
 	}
@@ -359,50 +372,105 @@ void wrap_retro_run(void) {
 	// Disable the osd message after 2 seconds
 	if (gb_temporary_osd) {
 		if (os_get_tick_count() - g_osd_time > 1000) {
-			if (!g_show_fps) *fw_fps_counter_enable = 0; // Don't change fps if fps is enabled
+			if (!g_fps_counter) *fw_fps_counter_enable = 0; // Don't change fps if fps is enabled
 			gb_temporary_osd = false;
 		}
 	}
 
 	// Do not use retro_input_state_cb to avoid key remapping issues
-	if (g_joy_task_state == HOTKEYSCREENSHOT || g_joy_task_state == HOTKEYSAVESTATE || g_joy_task_state == HOTKEYLOADSTATE 
-		|| g_joy_task_state == HOTKEYINCREASESTATE || g_joy_task_state == HOTKEYDECREASESTATE) {
-		g_joy_state = 0; //Reset g_joy_state to avoid button presses
-		if ((g_joy_task_state == HOTKEYSCREENSHOT || g_joy_task_state == HOTKEYSAVESTATE || g_joy_task_state == HOTKEYLOADSTATE)
-    		&& (os_get_tick_count() - g_osd_time > 1000)) { // Use osd delay to prevent spamming hotkeys
-			if ((g_joy_task_state == HOTKEYSCREENSHOT) && (g_enable_screenshot_hotkey)) { // Save SRM Hotkey
-				capture_screenshot = true;
-			} else if ((g_joy_task_state == HOTKEYSAVESTATE) && (g_enable_savestate_hotkeys)) { // Save SRM state
-				state_save("");
-				g_osd_small_messages ? sprintf(osd_message, "S:%d", slot_state) : sprintf(osd_message, "Save: %d", slot_state);
-				show_osd_message(osd_message);
-			} else if ((g_joy_task_state == HOTKEYLOADSTATE) && (g_enable_savestate_hotkeys)) { // Load SRM state
-				state_load("");
-				g_osd_small_messages ? sprintf(osd_message, "L:%d", slot_state) : sprintf(osd_message, "Load: %d", slot_state);
-				show_osd_message(osd_message);
-			}
-		}
+    // Use osd delay to prevent spamming hotkeys
+	// Reset g_joy_state to avoid button presses
+    switch (g_joy_task_state) {
+        case HOTKEYSCREENSHOT:
+			// Screenshot
+			g_joy_state = 0; 
+			if (os_get_tick_count() - g_osd_time > 1000 && g_enable_screenshot_hotkey) {
+                capture_screenshot = true;
+            }
+            break;
+                
+        case HOTKEYSAVESTATE:
+			// Save current state
+			g_joy_state = 0; 
+			if (os_get_tick_count() - g_osd_time > 1000 && g_enable_savestate_hotkeys) {
+                state_save("");
+                g_osd_small_messages ? sprintf(osd_message, "S:%d", slot_state) : sprintf(osd_message, "Save: %d", slot_state);
+                show_osd_message(osd_message);
+            }
+            break;
+                
+        case HOTKEYLOADSTATE:
+			// Load current state
+			g_joy_state = 0; 
+			if (os_get_tick_count() - g_osd_time > 1000 && g_enable_savestate_hotkeys) {
+                state_load("");
+                g_osd_small_messages ? sprintf(osd_message, "L:%d", slot_state) : sprintf(osd_message, "Load: %d", slot_state);
+                show_osd_message(osd_message);
+            }
+            break;
+                
+        case HOTKEYINCREASESTATE:
+            // Increase state
+			g_joy_state = 0; 
+            if (os_get_tick_count() - slot_delay_time > 100 && g_enable_savestate_hotkeys) {
+                if (slot_state < 9) {
+                    slot_state += 1;
+                } else {
+                    slot_state = 0;
+                }
+                    	
+                g_osd_small_messages ? sprintf(osd_message, "SLT:%d", slot_state) : sprintf(osd_message, "Slot: %d", slot_state);
+                show_osd_message(osd_message);
+                slot_delay_time = os_get_tick_count();
+            }
+            break;
 
-		if (((g_joy_task_state == HOTKEYINCREASESTATE || g_joy_task_state == HOTKEYDECREASESTATE)  // Increase or Decrease state
-    	&& (os_get_tick_count() - slot_delay_time > 100))  // Delay so it isn't too fast
-    	&& g_enable_savestate_hotkeys) { // Hotkey setting enabled
-			if (g_joy_task_state == HOTKEYINCREASESTATE) { 	
-				if (slot_state < 9) {
-					slot_state += 1;
-				} else {
-					slot_state = 0;
-				}
-			} else if (g_joy_task_state == HOTKEYDECREASESTATE) { 	
-				if (slot_state > 0) {
-					slot_state -= 1;
-				} else {
-					slot_state = 9;
-				}
-			}
-			g_osd_small_messages ? sprintf(osd_message, "SLT:%d", slot_state) : sprintf(osd_message, "Slot: %d", slot_state);
-			show_osd_message(osd_message);
-			slot_delay_time = os_get_tick_count();
-		}
+        case HOTKEYDECREASESTATE:
+            // Decrease state
+			g_joy_state = 0; 
+            if (os_get_tick_count() - slot_delay_time > 100 && g_enable_savestate_hotkeys) {
+                if (slot_state > 0) {
+                    slot_state -= 1;
+                } else {
+                    slot_state = 9;
+                }
+                    
+                g_osd_small_messages ? sprintf(osd_message, "SLT:%d", slot_state) : sprintf(osd_message, "Slot: %d", slot_state);
+                show_osd_message(osd_message);
+                slot_delay_time = os_get_tick_count();
+            }
+            break;
+
+		case HOTKEYINCREASEDARKEN:
+            // Increase state
+			g_joy_state = 0; 
+            if (os_get_tick_count() - slot_delay_time > 100 && g_enable_darken_filter && g_enable_darken_hotkey) {
+                if (g_darken_percentage < 100) {
+                    g_darken_percentage += 1;
+                } 
+				
+                g_osd_small_messages ? sprintf(osd_message, "DF:%d", g_darken_percentage) : sprintf(osd_message, "Darken: %d", g_darken_percentage);
+                show_osd_message(osd_message);
+                slot_delay_time = os_get_tick_count();
+            }
+            break;
+
+        case HOTKEYDECREASEDARKEN:
+            // Decrease state
+			g_joy_state = 0; 
+            if (os_get_tick_count() - slot_delay_time > 100 && g_enable_darken_filter && g_enable_darken_hotkey) {
+                if (g_darken_percentage > 0) {
+                    g_darken_percentage -= 1;
+                }
+				
+                g_osd_small_messages ? sprintf(osd_message, "DF:%d", g_darken_percentage) : sprintf(osd_message, "Darken: %d", g_darken_percentage);
+                show_osd_message(osd_message);
+                slot_delay_time = os_get_tick_count();
+            }
+            break;
+                
+        default:
+            break;
 	}
 
 	retro_run(); 
@@ -566,9 +634,16 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 
 		video_options(s_core_config);
 
+		// Frogui pause menu patch?
+		config_get_bool(s_core_config, "sf2000_enable_frogui_patch", &g_enable_frogui_patch);
+
 		// show FPS?
 		config_get_bool(s_core_config, "sf2000_show_fps", &g_show_fps);
-		fps_counter_enable(g_show_fps);
+
+		// Darkening filter?
+		config_get_bool(s_core_config, "sf2000_enable_darken_filter", &g_enable_darken_filter);
+		config_get_bool(s_core_config, "sf2000_enable_darken_hotkey", &g_enable_darken_hotkey);
+		config_get_uint(s_core_config, "sf2000_darken_percentage", &g_darken_percentage);
 
 		// per state srm?
 		config_get_bool(s_core_config, "sf2000_per_state_srm", &g_per_state_srm);
@@ -883,14 +958,13 @@ void wrap_retro_init(void)
 
 void wrap_retro_deinit(void)
 {
-	if (g_show_fps)
-		fps_counter_enable(false);
+	if (g_fps_counter) *fw_fps_counter_enable = 0;
 	video_cleanup();
 	retro_deinit();
 	config_free();
 
-	if (s_rgb565_convert_buffer)
-		free(s_rgb565_convert_buffer);
+	if (rgb565_darken_buffer) free(rgb565_darken_buffer);
+	if (s_rgb565_convert_buffer) free(s_rgb565_convert_buffer);
 }
 
 size_t mono_mix_audio_batch_cb(const int16_t *data, size_t frames)
@@ -978,14 +1052,39 @@ static void dummy_retro_run(void)
 	//retro_environment_cb(RETRO_ENVIRONMENT_SHUTDOWN, NULL);
 }
 
-static void fps_counter_enable(bool enable)
+void darken_rgb565_buffer(const void* buffer, unsigned width, unsigned height, uint8_t darken_percentage)
 {
-    *fw_fps_counter_enable = enable ? 1 : 0;
+    const uint16_t* src = (const uint16_t*)buffer;
+    uint16_t* dst = rgb565_darken_buffer;
+    unsigned pixel_count = width * height;
+
+    // Convert darken_percentage (0-100) to darken_factor_256 (0-255)
+	uint8_t darken_factor_256 = ((100 - darken_percentage) * 255) / 100;
+
+    for (unsigned i = 0; i < pixel_count; i++)
+    {
+        uint16_t pixel = src[i];
+
+        // Extract components
+        uint8_t r5 = (pixel >> 11) & 0x1F;
+        uint8_t g6 = (pixel >> 5) & 0x3F;
+        uint8_t b5 = pixel & 0x1F;
+
+        // Darken components with integer math
+        r5 = (r5 * darken_factor_256) >> 8;
+        g6 = (g6 * darken_factor_256) >> 8;
+        b5 = (b5 * darken_factor_256) >> 8;
+
+        // Repack components
+        dst[i] = (r5 << 11) | (g6 << 5) | b5;
+    }
 }
 
 void wrap_video_refresh_cb(const void *data, unsigned width, unsigned height, size_t pitch)
 {
 	if (g_show_fps) {
+		*fw_fps_counter_enable = 1;
+		g_fps_counter = true; 
 		static uint32_t prev_msec = 0;
 		static int count_all = 0;
 		static int count_not_skipped = 0;
@@ -1092,10 +1191,23 @@ void wrap_video_refresh_cb(const void *data, unsigned width, unsigned height, si
         capture_screenshot = false;
     }
 
-	if (g_xrgb888) {
+	if (!rgb565_darken_buffer || width != buffer_prev_width || height != buffer_prev_height) { // AV Out changes resolution?
+    	if (rgb565_darken_buffer) free(rgb565_darken_buffer);
+
+    	rgb565_darken_buffer = malloc(width * height * 2);
+    	buffer_prev_width = width;
+    	buffer_prev_height = height;
+	}
+
+	if (g_xrgb888) { //TODO: add darkening filter support
 		convert_xrgb8888_to_rgb565((void*)data, width, height, pitch);
 		retro_video_refresh_cb(s_rgb565_convert_buffer, width, height, width * 2);		// each pixel is now 16bit, so pass the pitch as width*2
 	} else {
-		retro_video_refresh_cb(data, width, height, pitch);
+		if (data && g_enable_darken_filter) {
+			darken_rgb565_buffer(data, width, height, g_darken_percentage);
+			retro_video_refresh_cb(rgb565_darken_buffer, width, height, pitch);
+		} else { // Handle null data or no filter
+			retro_video_refresh_cb(data, width, height, pitch);
+		}
 	}
 }
