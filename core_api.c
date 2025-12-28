@@ -26,6 +26,7 @@ bool wrap_retro_load_game(const struct retro_game_info* info);
 void wrap_retro_unload_game(void);
 
 struct retro_game_info saved_game_info;
+struct retro_system_info sysinfo;
 
 static bool g_enable_frogui_patch = false;
 // Patch pause menu
@@ -120,7 +121,9 @@ static bool g_enable_darken_hotkey = true;
 static int buffer_prev_width = 0, buffer_prev_height = 0, g_darken_percentage = 0;
 
 static bool g_swap_controllers = false;
+static bool g_swap_gameboy = true;
 static bool g_enable_ctrlswp_hotkey = false;
+static bool variable_update_flag = false;
 
 // BMP Header Structures
 #pragma pack(push, 1)
@@ -189,9 +192,6 @@ int create_dir(const char *path) {
 // Loads the keymap configuration for the game.
 void load_keymap(const char *s_game_filepath)
 {
-	struct retro_system_info sysinfo;
-	retro_get_system_info(&sysinfo);
-
 	char kmp_filepath[MAXPATH];
 
 	char basename[MAXPATH];
@@ -236,8 +236,6 @@ void build_srm_filepath(char *filepath, size_t size, const char *game_filepath, 
 	create_dir(directory); // Make sure SAVE_DIRECTORY exists 
 
 	if(g_per_core_srm){
-		struct retro_system_info sysinfo;
-		retro_get_system_info(&sysinfo);
 		snprintf(directory, size, "%s/%s", SAVE_DIRECTORY, sysinfo.library_name);
 		create_dir(directory);	// Make sure SAVE_DIRECTORY/sysinfo.library_name exists 
 	}
@@ -372,6 +370,18 @@ int show_osd_message(const char *message) {
 	}
 }
 
+bool config_entry_exists(const config_file_t *conf, const char *key)
+{
+	struct config_entry_list *entry;
+    for (entry = conf->entries; entry; entry = entry->next)
+    {
+        if (strcmp(entry->key, key) == 0)
+            return true;
+    }
+
+    return false;
+}
+
 void wrap_retro_run(void) {
 	// Disable the osd message after 2 seconds
 	if (gb_temporary_osd) {
@@ -475,15 +485,33 @@ void wrap_retro_run(void) {
                 
 		case HOTKEYSWAPPLAYER:
             // Swap Controller
-			g_joy_state = 0; 
+			g_joy_state = 0;
 			if (os_get_tick_count() - g_osd_time > 1000 && g_enable_ctrlswp_hotkey) {
+				char single_screen_mp[32];
+				char audio_output[32];
+				strcpy(single_screen_mp, "tgbdual_single_screen_mp");
+				strcpy(audio_output, "tgbdual_audio_output");
+				if (strcmp(sysinfo.library_name, "DoubleCherryGB") == 0) strcpy(single_screen_mp, "dcgb_single_screen_mp");
+				if (strcmp(sysinfo.library_name, "DoubleCherryGB") == 0) strcpy(audio_output, "dcgb_audio_output");
+
 				if (g_swap_controllers) {
+					if (config_entry_exists(s_core_config, single_screen_mp) 
+    					&& (strcmp(sysinfo.library_name, "DoubleCherryGB") == 0 || strcmp(sysinfo.library_name, "TGB Dual") == 0) && g_swap_gameboy) {
+						config_set_string(s_core_config, single_screen_mp, "player 1 only");
+						config_set_string(s_core_config, audio_output, "Game Boy #1");
+						variable_update_flag = true;
+					}
 					g_swap_controllers = false;
 					g_osd_small_messages ? sprintf(osd_message, "P1") : sprintf(osd_message, "Player 1");
 				} else {
+					if (config_entry_exists(s_core_config, single_screen_mp) 
+    					&& (strcmp(sysinfo.library_name, "DoubleCherryGB") == 0 || strcmp(sysinfo.library_name, "TGB Dual") == 0) && g_swap_gameboy) {
+						config_set_string(s_core_config, single_screen_mp, "player 2 only");
+						config_set_string(s_core_config, audio_output, "Game Boy #2");
+						variable_update_flag = true;
+					}
 					g_swap_controllers = true;
 					g_osd_small_messages ? sprintf(osd_message, "P2") : sprintf(osd_message, "Player 2");
-
 				}
 				
                 show_osd_message(osd_message);
@@ -578,8 +606,6 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 	memcpy(&saved_game_info, info, sizeof(struct retro_game_info)); // Save the retro_game_info incase we want to reset
 
 	bool ret;
-	struct retro_system_info sysinfo;
-	retro_get_system_info(&sysinfo);
 
 	xlog("core=%s-%s need_fullpath=%d exts=%s\n", sysinfo.library_name, sysinfo.library_version, sysinfo.need_fullpath, sysinfo.valid_extensions);
 
@@ -656,15 +682,15 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 
 		video_options(s_core_config);
 
-		// Frogui pause menu patch?
+		// Frogui pause menu patch
 		config_get_bool(s_core_config, "sf2000_enable_frogui_patch", &g_enable_frogui_patch);
 
-		// show FPS?
+		// show FPS
 		config_get_bool(s_core_config, "sf2000_show_fps", &g_show_fps);
 
-		// per state srm?
+		// per state srm
 		config_get_bool(s_core_config, "sf2000_per_state_srm", &g_per_state_srm);
-		// per core srm?
+		// per core srm
 		config_get_bool(s_core_config, "sf2000_per_core_srm", &g_per_core_srm);
 
 		// Hotkey settings
@@ -673,16 +699,17 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 		config_get_bool(s_core_config, "sf2000_enable_osd", &g_enable_osd);
 		config_get_bool(s_core_config, "sf2000_osd_small_messages", &g_osd_small_messages);
 		
-		// Darkening filter?
+		// Darkening filter
 		config_get_bool(s_core_config, "sf2000_enable_darken_filter", &g_enable_darken_filter);
 		config_get_bool(s_core_config, "sf2000_enable_darken_hotkey", &g_enable_darken_hotkey);
 		config_get_uint(s_core_config, "sf2000_darken_percentage", &g_darken_percentage);
 
-		// controller swap? 
+		// Controller swap
 		config_get_bool(s_core_config, "sf2000_swap_controllers", &g_swap_controllers);
+		config_get_bool(s_core_config, "sf2000_swap_gameboy", &g_swap_gameboy);
 		config_get_bool(s_core_config, "sf2000_enable_ctrlswp_hotkey", &g_enable_ctrlswp_hotkey);
 
-		// make sure the first two controllers are configured as gamepads
+		// Make sure the first two controllers are configured as gamepads
 		retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
 		retro_set_controller_port_device(1, RETRO_DEVICE_JOYPAD);
 
@@ -784,6 +811,14 @@ bool wrap_environ_cb(unsigned cmd, void *data)
 			xlog("support for auto frameskipping %s\n", buff_status_cb ? "enabled" : "disabled" );
 			return true;
 		}
+
+		case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE:
+		{
+            *(bool*)data = variable_update_flag;
+            variable_update_flag = false;
+            return true;
+		}
+
 	}
 	return retro_environment_cb(cmd, data);
 }
@@ -827,8 +862,6 @@ char build_state_filepath(char *state_filepath, size_t size, const char *game_fi
 {
 //	"/mnt/sda1/ROMS/pce/Alien Crush.pce"	->
 //	"/mnt/sda1/saves/savestates/[core]/Alien Crush.state[slot]"
-	struct retro_system_info sysinfo;
-	retro_get_system_info(&sysinfo);
 
 	// last char is the save slot number
 	char save_slot = frontend_state_filepath[strlen(frontend_state_filepath) - 1];
@@ -928,14 +961,6 @@ void build_game_config_filepath(char *filepath, size_t size, const char *game_fi
 	snprintf(filepath, size, "%s/%s/options/%s.opt", CONFIG_DIRECTORY, library_name, basename);
 }
 
-void build_core_config_filepath(char *filepath, size_t size)
-{
-	struct retro_system_info sysinfo;
-	retro_get_system_info(&sysinfo);
-
-	snprintf(filepath, size, "%s/%s/%s.opt", CONFIG_DIRECTORY, sysinfo.library_name, sysinfo.library_name);
-}
-
 void config_add_file(const char *filepath)
 {
 	bool ret = config_append_file(s_core_config, filepath);
@@ -950,7 +975,7 @@ void config_load()
 	config_add_file(CONFIG_DIRECTORY "/multicore.opt");
 
 	char config_filepath[MAXPATH];
-	build_core_config_filepath(config_filepath, sizeof(config_filepath));
+	snprintf(config_filepath, sizeof(config_filepath), "%s/%s/%s.opt", CONFIG_DIRECTORY, sysinfo.library_name, sysinfo.library_name);
 
 	// load per core options
 	config_add_file(config_filepath);
@@ -975,7 +1000,8 @@ bool config_get_var(struct retro_variable *var)
 }
 
 void wrap_retro_init(void)
-{
+{	
+	retro_get_system_info(&sysinfo);
 	config_load();
 	retro_set_video_refresh(wrap_video_refresh_cb);
 	retro_init();
