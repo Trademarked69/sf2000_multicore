@@ -109,6 +109,7 @@ void load_and_run_core(const char *file_path, int load_state)
 		}
 	}
 	full_cache_flush(); // Just incase this is loaded from within a core
+	strncpy(ptr_gs_run_game_file, filename, MAXPATH); // Clean up the filename, used by frontend save states
 
 	// this will show a loading screen when loading a rom.
 	// it will act as an indicator that a custom core and not a stock emulator is running.
