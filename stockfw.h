@@ -43,6 +43,7 @@ extern uint32_t os_get_tick_count(void);
 
 extern HANDLE dev_get_by_id(uint32_t, uint16_t);
 
+extern void run_game(const char *filename, int load_state);
 extern int run_emulator(int load_state);
 extern int run_emulator_menu(void);
 extern void run_gba(const char *filename, int load_state);
@@ -54,6 +55,10 @@ extern size_t retro_audio_sample_batch_cb(const int16_t *data, size_t frames);
 extern void retro_input_poll_cb(void);
 extern int16_t retro_input_state_cb(unsigned port, unsigned device, unsigned index, unsigned id);
 extern bool retro_environment_cb(unsigned cmd, void *data);
+
+extern uint32_t unwqw_init(const char* path, uint32_t preview_size, int param_3);
+extern int unwqw_decompress(uint32_t pointer, int param_2, void* buffer, int param_4, int param_5);
+extern void unwqw_free(uint32_t pointer);
 
 /* .data */
 
@@ -82,6 +87,10 @@ extern void * gp_buf_64m;
 
 extern uint32_t g_joy_task_state;
 extern uint32_t g_joy_state;
+
+extern uint32_t g_preview_size;
+extern uint32_t g_preview_width;
+extern uint32_t g_preview_height;
 
 extern char *ptr_gs_run_game_name;
 extern char *ptr_gs_run_game_file;

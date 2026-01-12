@@ -3,12 +3,14 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <reent.h>
+#include <ctype.h>
 
 #include "libretro.h"
 #include "file/file_path.h"
 #include "file/config_file.h"
 
 #include "core_api.h"
+#include "core.h"
 #include "debug.h"
 #include "stockfw.h"
 #include "video_sf2000.h"
@@ -18,29 +20,6 @@
 
 #define PATCH_J(target, hook)    *(uint32_t*)(target) = MIPS_J(hook)
 #define PATCH_JAL(target, hook)  *(uint32_t*)(target) = MIPS_JAL(hook)
-
-void save_srm(const char slot);
-void load_srm(const char slot);
-
-bool wrap_retro_load_game(const struct retro_game_info* info);
-void wrap_retro_unload_game(void);
-
-struct retro_game_info saved_game_info;
-struct retro_system_info sysinfo;
-
-static bool g_enable_frogui_patch = false;
-// Patch pause menu
-int dummy_run_emulator_menu(void) {
-	save_srm(0); // Save before loading the pause menu (incase of crashes + replace savesrm hotkey)
-	unsigned int run_emulator_menu_response = run_emulator_menu();
-	if (g_enable_frogui_patch) {
-		if (run_emulator_menu_response == 1) { // Replace quit button with reset core since quit button is broken when using the menu core
-			wrap_retro_unload_game();
-			wrap_retro_load_game(&saved_game_info);
-		}
-		return 0;
-	} else return run_emulator_menu_response;
-}
 
 // Hotkeys
 // Up = 10, Down = 40, Left = 80, Right = 20
@@ -73,8 +52,10 @@ static bool wrap_environ_cb(unsigned cmd, void *data);
 static size_t mono_mix_audio_batch_cb(const int16_t *data, size_t frames);
 static void mono_mix_audio_sample_cb(int16_t left, int16_t right);
 
+static bool wrap_retro_load_game(const struct retro_game_info* info);
 static void wrap_retro_init(void);
 static void wrap_retro_deinit(void);
+static void wrap_retro_unload_game(void);
 static void wrap_retro_run(void);
 
 static void log_cb(enum retro_log_level level, const char *fmt, ...);
@@ -110,6 +91,9 @@ static char *fw_fps_counter_format = (char *)0x8099bdf0;	// "%2d/%2d"
 
 void build_game_config_filepath(char *filepath, size_t size, const char *game_filepath, const char *library_name);
 void config_add_file(const char *filepath);
+void save_srm(const char slot);
+void load_srm(const char slot);
+void shutdown_game(void);
 
 #define KEYMAP_SIZE 12
 
@@ -122,8 +106,14 @@ static int buffer_prev_width = 0, buffer_prev_height = 0, g_darken_percentage = 
 
 static bool g_swap_controllers = false;
 static bool g_swap_gameboy = true;
-static bool g_enable_ctrlswp_hotkey = false;
+static bool g_enable_ctrlswp_hotkey = true;
 static bool variable_update_flag = false;
+static bool g_enable_frogui_patch = true;
+
+#define MAX_CONTENT_INFO_OVERRIDES 3
+
+static const struct retro_system_content_info_override* content_info_overrides[MAX_CONTENT_INFO_OVERRIDES];
+static size_t content_info_override_count = 0;
 
 // BMP Header Structures
 #pragma pack(push, 1)
@@ -180,6 +170,10 @@ struct retro_core_t core_exports = {
    .retro_get_memory_data = retro_get_memory_data,
    .retro_get_memory_size = retro_get_memory_size,
 };
+
+struct retro_game_info saved_game_info;
+struct retro_system_info sysinfo;\
+struct retro_game_info_ext game_info_ext;
 
 // Make a directory if it doesn't exist
 int create_dir(const char *path) {
@@ -574,6 +568,79 @@ static void call_dtors()
 	}
 }
 
+// Function to load a raw RGB565 image into the framebuffer
+int load_rgb565_image(const char* filename, uint16_t* framebuffer, int width, int height) {
+    // Open the raw image file
+    FILE* file = fopen(filename, "rb");
+    if (file == NULL)
+    {
+        xlog("Error opening file: %s\n", filename);
+        return -1;
+    }
+
+    // Calculate the number of bytes to read (width * height * 2 bytes per pixel)
+    size_t image_size = width * height * sizeof(uint16_t);
+
+    // Read the raw RGB565 image data into the framebuffer
+    size_t bytes_read = fread(framebuffer, 1, image_size, file);
+    if (bytes_read != image_size)
+    {
+        xlog("Error reading the image file\n");
+        fclose(file);
+        return -1;
+    }
+
+    // Close the file after reading the image
+    fclose(file);
+
+    return 0;
+}
+
+// Wrap run_game for FrogUI or other menu cores so we can unload game and deinit
+void wrap_run_game(const char *filename, int load_state) {
+	wrap_retro_unload_game();
+	wrap_retro_deinit();
+	run_game(filename, load_state);
+}
+
+// Run the Menu core as a method of exiting
+void shutdown_game(void) {
+	// Calculate the size of the framebuffer and allocate memory for the framebuffer
+    size_t framebuffer_size = 640 * 480 * sizeof(uint16_t);
+    uint16_t* framebuffer = (uint16_t*)malloc(framebuffer_size);
+
+    // Initialize the framebuffer to black so we black out the screen before loading a new game
+    memset(framebuffer, 0x0000, framebuffer_size);
+
+	// Calculate pixel pitch
+	uint16_t pixel_pitch = 640 * sizeof(uint16_t);
+
+	// Write framebuffer to screen then free it
+	run_screen_write(framebuffer, 640, 480, pixel_pitch); // Is this the proper way to do this?
+	free(framebuffer);
+
+	// Prepare the loader to load the menu
+	strcpy(ptr_gs_run_game_file, "menu;p.gba");
+	strcpy(ptr_gs_run_game_name, "FrogUI");
+
+	// Unload the game and deinit before running the menu
+	wrap_retro_unload_game();
+	wrap_retro_deinit();
+	run_game("/mnt/sda1/ROMS/menu;p.gba", 0);
+}
+
+// Patch pause menu
+int dummy_run_emulator_menu(void) {
+	save_srm(0); // Save before loading the pause menu (incase of crashes + replace savesrm hotkey)
+	unsigned int run_emulator_menu_response = run_emulator_menu();
+	if (g_enable_frogui_patch) {
+		if (run_emulator_menu_response == 1) { // Replace quit button
+			shutdown_game();
+		}
+		return 0;
+	} else return run_emulator_menu_response;
+}
+
 // __core_entry__ must be placed at a known location in the binary (at the beginning)
 // so that when the loader actually loads the binary into mem address 0x87000000,
 // then __core_entry__ will be the first function there for the loader to call.
@@ -601,8 +668,157 @@ struct retro_core_t *__core_entry__(void)
 	return &core_exports;
 }
 
-bool wrap_retro_load_game(const struct retro_game_info* info)
-{
+static bool str_eq_ci(const char *a, const char *b, size_t len) {
+    for (size_t i = 0; i < len; i++)
+    {
+        if (tolower((unsigned char)a[i]) != tolower((unsigned char)b[i]))
+            return false;
+    }
+    return true;
+}
+
+static bool extension_in_list_ci(const char *ext, const char *list) {
+    if (!ext || !list) return false;
+
+    const char *start = list;
+    const char *end;
+
+    while (*start)
+    {
+        end = strchr(start, '|');
+        if (!end) end = start + strlen(start);
+
+        size_t len = end - start;
+
+        if (strlen(ext) == len && str_eq_ci(ext, start, len))
+            return true;
+
+        if (*end == '\0')
+            break;
+        start = end + 1;
+    }
+
+    return false;
+}
+
+bool extension_supports_no_fullpath(const char *ext) {
+    for (size_t i = 0; i < content_info_override_count; i++) {
+        const struct retro_system_content_info_override *ovr = content_info_overrides[i];
+
+        if (!ovr->need_fullpath && extension_in_list_ci(ext, ovr->extensions))
+            return true;
+    }
+    return false;
+}
+
+// Unzip a file into a buffer
+void unzip_file(const char* path, void* buffer, bool is_wqw, uint32_t preview_size) {
+	uint32_t unwqw_init_response = unwqw_init(path,preview_size,2);
+    unwqw_decompress(unwqw_init_response,0,buffer,0,3);
+	unwqw_free(unwqw_init_response);
+}
+
+// Check if a file is .zip or WQW (.zfc, .zsf, .zmd, .zgb, .zpc)
+bool is_zip_wqw_file(const char* path, bool* is_wqw) {
+	*is_wqw = false;
+
+    size_t len = strlen(path);
+    if (len <= 4) return false;
+
+    const char* ext = path + len - 4;
+
+    if (str_eq_ci(ext, ".zip", 4)) {
+        return true;
+    }
+
+    // WQW extensions
+    const char* wqw_exts[] = { ".zfc", ".zsf", ".zmd", ".zgb", ".zpc" };
+    for (size_t i = 0; i < sizeof(wqw_exts)/sizeof(wqw_exts[0]); i++) {
+        if (str_eq_ci(ext, wqw_exts[i], 4)) {
+            *is_wqw = true;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void dump_zip_header(const char *zip_path, bool is_wqw, uint32_t preview_size, zip_local_file_header *zip_header) {
+    FILE *zip_file = fopen(zip_path, "rb");
+    if (!zip_file) {
+        xlog("Failed to open ZIP file\n");
+        return;
+    }
+
+	// If this is a WQW file, skip preview bytes
+    if (is_wqw && preview_size > 0) {
+        if (fseek(zip_file, preview_size, SEEK_SET) != 0) {
+            xlog("Failed to skip preview bytes: %u\n", preview_size);
+            fclose(zip_file);
+            return;
+        }
+        xlog("Skipped %u preview bytes for WQW file\n", preview_size);
+    }
+
+    // Read fields from the header
+	fread(&zip_header->signature, sizeof(uint32_t), 1, zip_file);
+    fread(&zip_header->version_needed, sizeof(uint16_t), 1, zip_file);
+    fread(&zip_header->general_flag, sizeof(uint16_t), 1, zip_file);
+    fread(&zip_header->compression_method, sizeof(uint16_t), 1, zip_file);
+    fread(&zip_header->last_mod_time, sizeof(uint16_t), 1, zip_file);
+    fread(&zip_header->last_mod_date, sizeof(uint16_t), 1, zip_file);
+    fread(&zip_header->crc32, sizeof(uint32_t), 1, zip_file);
+    fread(&zip_header->compressed_size, sizeof(uint32_t), 1, zip_file);
+    fread(&zip_header->uncompressed_size, sizeof(uint32_t), 1, zip_file);
+    fread(&zip_header->filename_length, sizeof(uint16_t), 1, zip_file);
+	fread(&zip_header->extra_field_length, sizeof(uint16_t), 1, zip_file);
+
+    // Read the filename
+    zip_header->filename = (char *)malloc(zip_header->filename_length + 1);  // +1 for null terminator
+    fread(zip_header->filename, sizeof(char), zip_header->filename_length, zip_file);
+    zip_header->filename[zip_header->filename_length] = '\0';  // Null-terminate the string
+
+	// If the signature is 0x57515703 (0x03575157 little endian) (obfuscated WQW), undo XOR 0xE5 on the filename
+    if (zip_header->signature == 0x03575157) {
+        for (int i = 0; i < zip_header->filename_length; i++) {
+            zip_header->filename[i] ^= 0xE5;
+        }
+    }
+
+    fclose(zip_file);
+}
+
+void extract_extension(const char *filename, char **extension) {
+    char *dot = strrchr(filename, '.');
+	if (dot == NULL) {
+        *extension = NULL;
+    } else {
+        *extension = strdup(dot + 1);
+    }
+}
+
+void extract_path_components(const char *filepath, char **dir, char **filename, char **extension) {
+    // Copy filepath to avoid modifying the original string
+    char *path_copy = strdup(filepath);
+
+    // Extract directory part by finding the last slash
+    char *last_slash = strrchr(path_copy, '/');
+    *last_slash = '\0';
+    *dir = strdup(path_copy);
+    *filename = strdup(last_slash + 1);
+    extract_extension(*filename, extension);
+
+	if (*extension != NULL) {
+        char *dot = strrchr(*filename, '.');
+        if (dot != NULL) {
+            *dot = '\0';
+        }
+    }
+
+    free(path_copy);
+}
+
+bool wrap_retro_load_game(const struct retro_game_info* info) {
 	memcpy(&saved_game_info, info, sizeof(struct retro_game_info)); // Save the retro_game_info incase we want to reset
 
 	bool ret;
@@ -631,42 +847,78 @@ bool wrap_retro_load_game(const struct retro_game_info* info)
 	retro_set_audio_sample(mono_mix_audio_sample_cb);
 	retro_set_audio_sample_batch(mono_mix_audio_batch_cb);
 
-	// if core wants to load the content by itself directly from files, then let it
-	if (sysinfo.need_fullpath)
-	{
-		xlog("core loads content directly from file\n");
-		ret = retro_load_game(info);
+	FILE *hfile = fopen(info->path, "rb");
+	if (!hfile) {
+		xlog("[core] Error opening rom file=%s\n", info->path);
+		return false;
 	}
-	else
-	{
-		// otherwise load the content into a temp buffer and pass it to the core
 
-		FILE *hfile = fopen(info->path, "rb");
-		if (!hfile) {
-			xlog("[core] Error opening rom file=%s\n", info->path);
-			return false;
+	void *buffer;
+	long size;
+	char *dir = NULL;
+    char *filename = NULL;
+    char *extension = NULL;
+	bool is_wqw;
+	bool core_supports_rom_in_buffer = false;
+	zip_local_file_header zip_header;
+
+	extract_path_components(info->path, &dir, &filename, &extension);
+	core_supports_rom_in_buffer = extension_supports_no_fullpath(extension);
+
+	if (is_zip_wqw_file(info->path, &is_wqw)) {
+		g_preview_size = 0;
+		if (is_wqw) g_preview_size = g_preview_height * g_preview_width * 2;
+		dump_zip_header(info->path, is_wqw, g_preview_size, &zip_header);
+		size = zip_header.uncompressed_size;
+		// Extended game info
+		game_info_ext.file_in_archive = true;
+		game_info_ext.archive_path = info->path;
+		game_info_ext.archive_file = zip_header.filename;
+		extract_extension(zip_header.filename, &extension);
+		core_supports_rom_in_buffer = extension_supports_no_fullpath(extension);
+		if (!sysinfo.need_fullpath || core_supports_rom_in_buffer) {
+			buffer = malloc(size);
+			unzip_file(info->path, buffer, is_wqw, g_preview_size);
 		}
-
+	} else {
 		fseeko(hfile, 0, SEEK_END);
-		long size = ftell(hfile);
+		size = ftell(hfile);
 		fseeko(hfile, 0, SEEK_SET);
-
-		void *buffer = malloc(size);
-
-		fread(buffer, 1, size, hfile);
+		if (!sysinfo.need_fullpath || core_supports_rom_in_buffer) {
+			buffer = malloc(size);
+			fread(buffer, 1, size, hfile);
+		}
 		fclose(hfile);
-
-		struct retro_game_info gameinfo;
-		gameinfo.path = info->path;
-		gameinfo.data = buffer;
-		gameinfo.size = size;
-
-		xlog("game loaded into temp buffer. size=%u\n", size);
-
-		ret = retro_load_game(&gameinfo);
-
-		free(buffer);
+		// Extended game info
+		game_info_ext.file_in_archive = false;
 	}
+
+	if (sysinfo.need_fullpath && !core_supports_rom_in_buffer) xlog("core loads content directly from file\n");
+
+	struct retro_game_info gameinfo;
+	gameinfo.path = info->path;
+	if (!sysinfo.need_fullpath || core_supports_rom_in_buffer) {
+		gameinfo.data = buffer;
+		xlog("game loaded into temp buffer. size=%u\n", size);
+	} else gameinfo.data = info->data;
+	gameinfo.size = size;
+
+	// Extended game info
+	game_info_ext.persistent_data = false;
+	game_info_ext.full_path = info->path;
+	if (!sysinfo.need_fullpath || core_supports_rom_in_buffer) game_info_ext.data = buffer;
+	else game_info_ext.data = info->data;
+	game_info_ext.size = size;
+	game_info_ext.dir = dir;
+	game_info_ext.name = filename;
+	game_info_ext.ext = extension;
+
+	ret = retro_load_game(&gameinfo);
+
+	if (!sysinfo.need_fullpath || core_supports_rom_in_buffer) free(buffer);
+	free(dir);
+    free(filename);
+    free(extension);
 
 	if (!ret)
 	{
@@ -819,6 +1071,46 @@ bool wrap_environ_cb(unsigned cmd, void *data)
             return true;
 		}
 
+		case RETRO_ENVIRONMENT_SHUTDOWN:
+        {
+            log_cb(RETRO_LOG_INFO, "[Environ]: RETRO_ENVIRONMENT_SHUTDOWN\n");
+			shutdown_game();
+            return true;
+        }
+
+		case RETRO_ENVIRONMENT_GET_GAME_INFO_EXT:
+    	{
+			log_cb(RETRO_LOG_INFO, "[Environ]: GET_GAME_INFO_EXT\n");
+        	*(struct retro_game_info_ext**)data = &game_info_ext;
+        	log_cb(RETRO_LOG_INFO, "Full Path: %s\n", game_info_ext.full_path ? game_info_ext.full_path : "N/A");
+        	log_cb(RETRO_LOG_INFO, "Archive Path: %s\n", game_info_ext.archive_path ? game_info_ext.archive_path : "N/A");
+        	log_cb(RETRO_LOG_INFO, "Archive File: %s\n", game_info_ext.archive_file ? game_info_ext.archive_file : "N/A");
+        	log_cb(RETRO_LOG_INFO, "Directory: %s\n", game_info_ext.dir ? game_info_ext.dir : "N/A");
+        	log_cb(RETRO_LOG_INFO, "Name: %s\n", game_info_ext.name ? game_info_ext.name : "N/A");
+        	log_cb(RETRO_LOG_INFO, "Extension: %s\n", game_info_ext.ext ? game_info_ext.ext : "N/A");
+        	log_cb(RETRO_LOG_INFO, "Data: %p\n", game_info_ext.data);
+        	log_cb(RETRO_LOG_INFO, "Size: %d bytes\n", game_info_ext.size);
+        	log_cb(RETRO_LOG_INFO, "File in Archive: %s\n", game_info_ext.file_in_archive ? "Yes" : "No");
+        	log_cb(RETRO_LOG_INFO, "Persistent Data: %s\n", game_info_ext.persistent_data ? "Yes" : "No");
+        	return true;
+    	}
+
+		case RETRO_ENVIRONMENT_SET_CONTENT_INFO_OVERRIDE:
+		{
+    		const struct retro_system_content_info_override *overrides = (const struct retro_system_content_info_override *)data;
+    		content_info_override_count = 0;
+
+    		for (size_t i = 0; overrides[i].extensions; i++) {
+        		if (content_info_override_count >= MAX_CONTENT_INFO_OVERRIDES) {
+            		log_cb(RETRO_LOG_WARN, "[Environ]: SET_CONTENT_INFO_OVERRIDE: too many overrides, truncating at %zu\n", (size_t)MAX_CONTENT_INFO_OVERRIDES);
+            		break;
+        		}
+        		content_info_overrides[content_info_override_count++] = &overrides[i];
+    		}
+
+    		return true;
+		}
+		
 	}
 	return retro_environment_cb(cmd, data);
 }
@@ -1100,8 +1392,10 @@ static void frameskip_cb(BOOL flag)
 
 static void dummy_retro_run(void)
 {
-	dly_tsk(1);
-	//retro_environment_cb(RETRO_ENVIRONMENT_SHUTDOWN, NULL);
+	// Prepare the loader and load the menu
+	strcpy(ptr_gs_run_game_file, "menu;p.gba");
+	strcpy(ptr_gs_run_game_name, "FrogUI");
+	run_game("/mnt/sda1/ROMS/menu;p.gba", 0);
 }
 
 void darken_rgb565_buffer(const void* buffer, unsigned width, unsigned height, uint8_t darken_percentage)

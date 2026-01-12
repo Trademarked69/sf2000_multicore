@@ -54,11 +54,16 @@ retro_input_poll_cb			= 0x80358688;
 retro_input_state_cb 		= 0x80358778;
 retro_environment_cb		= 0x803587bc;
 
+run_game	= 0x8035a794;
 run_emulator	= 0x803589a4;
 run_emulator_menu = 0x8034e960;
 run_gba			= 0x80359d1c;
 
 set_keymap      = 0x80358494;
+
+unwqw_init = 0x8035f858;
+unwqw_decompress = 0x8035f97c;
+unwqw_free = 0x8035f9f0;
 
 /* .data */
 RAMSIZE	= 0x80c09bdc;
@@ -68,6 +73,10 @@ g_battery_level = 0x80c09e48;
 g_errno	= 0x80c0a3b0;
 
 g_snd_task_flags	= 0x80c0b574;
+
+g_preview_size = 0x80c0b5e4;
+g_preview_width = 0x80c10700;
+g_preview_height = 0x80c10760;
 
 g_retro_game_info	= 0x80c0b678;
 
