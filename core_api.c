@@ -172,7 +172,7 @@ struct retro_core_t core_exports = {
 };
 
 struct retro_game_info saved_game_info;
-struct retro_system_info sysinfo;\
+struct retro_system_info sysinfo;
 struct retro_game_info_ext game_info_ext;
 
 // Make a directory if it doesn't exist
