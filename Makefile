@@ -116,7 +116,7 @@ bisrv.asd: loader.bin lcd_font.bin crc
 		exit 1; \
 	fi
 
-	$(Q)cp bisrv_08_03.asd bisrv.asd
+	$(Q)cp assets/os/bisrv_sf2000.asd bisrv.asd
 
 	$(Q)dd if=loader.bin of=bisrv.asd bs=$$(($(LOADER_OFFSET))) seek=1 conv=notrunc 2>/dev/null
 

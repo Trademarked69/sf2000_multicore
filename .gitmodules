@@ -5,3 +5,6 @@
 [submodule "cores"]
 	path = cores
 	url = https://github.com/Data-Frog-Central/multicore_cores
+[submodule "resources"]
+	path = assets/resources
+	url = https://github.com/Data-Frog-Central/multicore_resources
