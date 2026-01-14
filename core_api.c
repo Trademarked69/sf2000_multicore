@@ -823,7 +823,7 @@ bool wrap_retro_load_game(const struct retro_game_info* info) {
 
 	bool ret;
 
-	xlog("core=%s-%s need_fullpath=%d exts=%s\n", sysinfo.library_name, sysinfo.library_version, sysinfo.need_fullpath, sysinfo.valid_extensions);
+	xlog("core=%s-%s need_fullpath=%d\n", sysinfo.library_name, sysinfo.library_version, sysinfo.need_fullpath);
 
 	// no need to strcpy, because info->path string should be valid during the execution of the game
 	s_game_filepath = info->path;
