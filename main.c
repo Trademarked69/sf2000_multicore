@@ -129,7 +129,7 @@ void load_and_run_core(const char *file_path, int load_state)
 	/* FIXME! all of it!! */
 	RAMSIZE = 0x87000000;
 
-	snprintf(corefile, MAXPATH, "/mnt/sda1/cores/%s/core_87000000", corename);
+	snprintf(corefile, MAXPATH, "/mnt/sda1/cores/%s.sf2k", corename);
 	snprintf(romfile, MAXPATH, "/mnt/sda1/ROMS/%s/%s", directory, filename);
 
 	//xlog("corefile=%s\n", corefile);

@@ -4,11 +4,4 @@
 	branch = master
 [submodule "cores"]
 	path = cores
-	url = https://github.com/madcock/sf2000_multicore_cores
-	branch = main
-[submodule "more-cores/libretro-doublecherryGB"]
-	path = more-cores/libretro-doublecherryGB
-	url = https://github.com/leonardothehuman/libretro-doublecherryGB.git
-[submodule "more-cores/libretro-mamenummacwaytausend"]
-	path = more-cores/libretro-mamenummacwaytausend
-	url = https://github.com/nummacway/libretro-mamenummacwaytausend.git
+	url = https://github.com/Data-Frog-Central/multicore_cores

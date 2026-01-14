@@ -1,108 +1,141 @@
 #!/bin/bash
 
-#fully working
-make CONSOLE=amstradb   CORE=cores/libretro-cap32 && \
-make CONSOLE=m2k        CORE=cores/libretro-mame2000 && \
-make CONSOLE=a26        CORE=cores/libretro-stella2014 && \
-make CONSOLE=a5200      CORE=cores/a5200 && \
-make CONSOLE=a78        CORE=cores/libretro-prosystem && \
-make CONSOLE=a800       CORE=cores/libretro-atari800lib && \
-make CONSOLE=lnx        CORE=cores/libretro-handy && \
-make CONSOLE=wswan      CORE=cores/libretro-beetle-wswan && \
-make CONSOLE=chip8      CORE=cores/jaxe MAKEFILE=-fMakefile.libretro && \
-make CONSOLE=col        CORE=cores/Gearcoleco/platforms/libretro && \
-make CONSOLE=fcf        CORE=cores/FreeChaF && \
-make CONSOLE=retro8     CORE=cores/retro8 && \
-make CONSOLE=vapor      CORE=cores/vaporspec/machine MAKEFILE=-fMakefile.libretro && \
-make CONSOLE=2048       CORE=cores/libretro-2048 MAKEFILE=-fMakefile.libretro && \
-make CONSOLE=gong       CORE=cores/gong MAKEFILE=-fMakefile.libretro && \
-make CONSOLE=outrun     CORE=cores/cannonball && \
-make CONSOLE=wolf3d     CORE=cores/ecwolf/src/libretro && \
-make CONSOLE=prboom     CORE=cores/libretro-prboom && \
-make CONSOLE=flashback  CORE=cores/REminiscence && \
-make CONSOLE=xrick      CORE=cores/libretro-xrick && \
-make CONSOLE=gw         CORE=cores/libretro-gw && \
-make CONSOLE=cdg        CORE=cores/libretro-pocketcdg && \
-make CONSOLE=int        CORE=cores/FreeIntv && \
-make CONSOLE=msx        CORE=cores/libretro-blueMSX && \
-make CONSOLE=gme        CORE=cores/libretro-gme && \
-make CONSOLE=pce        CORE=cores/libretro-beetle-pce-fast && \
-make CONSOLE=ngpc       CORE=cores/RACE && \
-make CONSOLE=gba        CORE=cores/gpsp && \
-make CONSOLE=dblcherrygb  CORE=more-cores/libretro-doublecherryGB && \
-make CONSOLE=m2kn       CORE=more-cores/libretro-mamenummacwaytausend && \
-make CONSOLE=gbb        CORE=cores/libretro-gambatte && \
-make CONSOLE=gbgb       CORE=cores/Gearboy/platforms/libretro && \
-make CONSOLE=gb         CORE=cores/libretro-tgbdual && \
-make CONSOLE=nes        CORE=cores/libretro-fceumm && \
-make CONSOLE=nesq       CORE=cores/QuickNES_Core && \
-make CONSOLE=pokem      CORE=cores/PokeMini && \
-make CONSOLE=snes02     CORE=cores/snes9x2002 && \
-make CONSOLE=snes       CORE=cores/snes9x2005 && \
-make CONSOLE=sega       CORE=cores/picodrive MAKEFILE=-fMakefile.libretro && \
-make CONSOLE=gg         CORE=cores/Gearsystem/platforms/libretro && \
-make CONSOLE=zx81       CORE=cores/libretro-81 && \
-make CONSOLE=spec       CORE=cores/libretro-fuse && \
-make CONSOLE=thom       CORE=cores/theodore && \
-make CONSOLE=vec        CORE=cores/libretro-vecx && \
-make CONSOLE=wsv        CORE=cores/potator/platform/libretro && \
+###
+### Fully working
+###
 
-#working but issues
-make CONSOLE=amstrad    CORE=cores/libretro-crocods && \
-make CONSOLE=arduboy    CORE=cores/arduous && \
-make CONSOLE=lnxb       CORE=cores/libretro-beetle-lynx && \
-make CONSOLE=bk         CORE=cores/bk-emulator MAKEFILE=-fMakefile.libretro && \
-make clean CONSOLE=c64sc   CORE=cores/libretro-vice EMUTYPE=x64sc && \
-make CONSOLE=c64sc         CORE=cores/libretro-vice EMUTYPE=x64sc && \
-make clean CONSOLE=c64sc   CORE=cores/libretro-vice EMUTYPE=x64sc && \
-make clean CONSOLE=c64     CORE=cores/libretro-vice EMUTYPE=x64 && \
-make CONSOLE=c64           CORE=cores/libretro-vice EMUTYPE=x64 && \
-make clean CONSOLE=c64     CORE=cores/libretro-vice EMUTYPE=x64 && \
-make clean CONSOLE=c64f  CORE=cores/libretro-frodo EMUTYPE=frodo && \
-make CONSOLE=c64f        CORE=cores/libretro-frodo EMUTYPE=frodo && \
-make clean CONSOLE=c64f  CORE=cores/libretro-frodo EMUTYPE=frodo && \
-make clean CONSOLE=c64fc CORE=cores/libretro-frodo EMUTYPE=frodosc && \
-make CONSOLE=c64fc       CORE=cores/libretro-frodo EMUTYPE=frodosc && \
-make clean CONSOLE=c64fc CORE=cores/libretro-frodo EMUTYPE=frodosc && \
-make clean CONSOLE=vic20   CORE=cores/libretro-vice EMUTYPE=xvic && \
-make CONSOLE=vic20         CORE=cores/libretro-vice EMUTYPE=xvic && \
-make clean CONSOLE=vic20   CORE=cores/libretro-vice EMUTYPE=xvic && \
-make CONSOLE=fake08     CORE=cores/fake-08/platform/libretro && \
-make CONSOLE=lowres-nx  CORE=cores/lowres-nx/platform/LibRetro && \
-make CONSOLE=mrboom     CORE=cores/libretro-mrboom && \
-make CONSOLE=jnb        CORE=cores/libretro-jumpnbump && \
-make CONSOLE=cavestory  CORE=cores/libretro-nxengine && \
-#make CONSOLE=x48        CORE=cores/libretro-x48 && \
-make CONSOLE=o2em       CORE=cores/libretro-o2em && \
-make CONSOLE=pcesgx     CORE=cores/libretro-beetle-supergrafx && \
-make CONSOLE=pc8800     CORE=cores/libretro-quasi88 && \
-make CONSOLE=pcfx       CORE=cores/libretro-beetle-pcfx && \
-make CONSOLE=gbav       CORE=cores/vba-next && \
-make CONSOLE=mgba       CORE=cores/mgba && \
-make CONSOLE=nest       CORE=cores/nestopia/libretro && \
-make CONSOLE=vb         CORE=cores/libretro-beetle-vb && \
-make CONSOLE=gpgx       CORE=cores/Genesis-Plus-GX MAKEFILE=-fMakefile.libretro && \
-make CONSOLE=geolith    CORE=cores/libretro-geolith/libretro && \
-make CONSOLE=xmil       CORE=cores/libretro-xmil/libretro && \
+# Main Emulators (Always compile)
+make CONSOLE="QuickNES"     CORE=cores/QuickNES_Core # Nintendo Entertainment System / Famicom
+make CONSOLE="FCEUmm"       CORE=cores/libretro-fceumm # Famicom Disk System / Nintendo Entertainment System (Fast)
+make CONSOLE="Snes9x 2002"  CORE=cores/snes9x2002 # Super Nintendo Entertainment System - Super Famicom
+make CONSOLE="Snes9x 2005"  CORE=cores/snes9x2005 # Super Nintendo Entertainment System (Fast) - Super Famicom (Fast)
+make CONSOLE="Gambatte"     CORE=cores/libretro-gambatte # Game Boy + Color
+make CONSOLE="TGB Dual"     CORE=cores/libretro-tgbdual # Game Boy + Color (2P)
+make CONSOLE="gpSP"         CORE=cores/gpsp # Game Boy Advance
+make CONSOLE="PicoDrive"    CORE=cores/picodrive MAKEFILE=-fMakefile.libretro # Mega Drive - Genesis / Mega-CD - Sega CD
+make CONSOLE="Gearsystem"   CORE=cores/Gearsystem/platforms/libretro # Game Gear / Master System - Mark III
+make CONSOLE="M2k"          CORE=cores/libretro-mame2000 # Mame 2000
+make CONSOLE="M2k-N"        CORE=cores/libretro-mamenummacwaytausend # Mame 2000 (Extra)
+make CONSOLE="PCE-Fast"     CORE=cores/libretro-beetle-pce-fast # PC Engine
 
-#working but major issues, not to release
-#make -C cores/fbalpha2012/svn-current/trunk platform=sf2000 -fmakefile.libretro generate-files && make CONSOLE=fba CORE=cores/fbalpha2012/svn-current/trunk MAKEFILE=-fmakefile.libretro && \
-#make CONSOLE=mame2003   CORE=cores/libretro-mame2003-plus && \
-#make CONSOLE=mame2003mw CORE=cores/mame2003_midway && \
-#make CONSOLE=atarist    CORE=cores/hatari MAKEFILE=-fMakefile.libretro && \
-make CONSOLE=quake      CORE=cores/tyrquake && \
+# Games / Apps
+make CONSOLE="2048"         CORE=cores/libretro-2048 MAKEFILE=-fMakefile.libretro # 2048 clone
+make CONSOLE="Gong"         CORE=cores/gong MAKEFILE=-fMakefile.libretro # Pong clone
+make CONSOLE="PocketCDG"    CORE=cores/libretro-pocketcdg # Karaoke music player
+make CONSOLE="GME"          CORE=cores/libretro-gme # Game Music Emu
 
-#test cores
-make CONSOLE=testadv CORE=cores/libretro-samples/tests/test_advanced && \
-make CONSOLE=testwav CORE=cores/libretro-samples/audio/audio_playback_wav && \
+# Engines
+make CONSOLE="PrBoom"       CORE=cores/libretro-prboom # DOOM
+make CONSOLE="ECWolf"       CORE=cores/ecwolf/src/libretro # Wolfenstein 3D
+make CONSOLE="XRick"        CORE=cores/libretro-xrick # Rick Dangerous
+make CONSOLE="Cannonball"   CORE=cores/cannonball # OutRun Engine
+make CONSOLE="REminiscence" CORE=cores/REminiscence # Flashback
 
-#deprecated working
-#
-make CONSOLE=tennis     CORE=cores/retro-tennis && \
-#
+# PC Emulators
+make CONSOLE="Fuse"         CORE=cores/libretro-fuse # ZX Spectrum
+make CONSOLE="cap32"        CORE=cores/libretro-cap32 # Amstrad - CPC
+make CONSOLE="blueMSX"      CORE=cores/libretro-blueMSX # MSX computers
+make CONSOLE="Atari 800"    CORE=cores/libretro-atari800lib # Atari - 800
+make CONSOLE="EightyOne"    CORE=cores/libretro-81 # ZX81
+make CONSOLE="Theodore"     CORE=cores/theodore # Thomson - MO/TO
 
+# Console Emulators
+make CONSOLE="Stella 2014"  CORE=cores/libretro-stella2014 # Atari - 2600
+make CONSOLE="a5200"        CORE=cores/a5200 # Atari - 5200
+make CONSOLE="ProSystem"    CORE=cores/libretro-prosystem # Atari - 7800
+make CONSOLE="Gearcoleco"   CORE=cores/Gearcoleco/platforms/libretro # ColecoVision
+make CONSOLE="FreeChaF"     CORE=cores/FreeChaF # Fairchild ChannelF / Video Entertainment System
+make CONSOLE="FreeIntv"     CORE=cores/FreeIntv # Intellivision
+make CONSOLE="vecx"         CORE=cores/libretro-vecx # Vectrex
 
-#make updatelogo ALPHARELEASE=0.10
+# Handheld Emulators
+make CONSOLE="WonderSwan"   CORE=cores/libretro-beetle-wswan # WonderSwan + Color
+make CONSOLE="PokeMini"     CORE=cores/PokeMini # Pokémon Mini
+make CONSOLE="GameWatch"    CORE=cores/libretro-gw # Game & Watch
+make CONSOLE="RACE"         CORE=cores/RACE # Neo Geo Pocket + Color
+make CONSOLE="Handy"        CORE=cores/libretro-handy # Atari - Lynx
+make CONSOLE="Potator"      CORE=cores/potator/platform/libretro # Watara Supervision
 
+# Virtual machines / Fantasy consoles
+make CONSOLE="JAXE"         CORE=cores/jaxe MAKEFILE=-fMakefile.libretro # XO-CHIP/CHIP-8
+make CONSOLE="Retro8"       CORE=cores/retro8 # PICO-8 (Fast)
+make CONSOLE="VaporSpec"    CORE=cores/vaporspec/machine MAKEFILE=-fMakefile.libretro # VaporSpec
+
+# Extra (Shouldn't compile unless requested)
+#make CONSOLE="Gearboy"      CORE=cores/Gearboy/platforms/libretro # Game Boy + Color
+#make CONSOLE="DBLCherryGB"  CORE=cores/libretro-doublecherryGB # Game Boy + Color (2P) (crashes more often)
+#make CONSOLE="retro-tennis" CORE=cores/retro-tennis # Pong Clone
+
+###
+### Working but issues/untested
+###
+
+# Games / Apps
+make CONSOLE="MrBoom"       CORE=cores/libretro-mrboom # Bomberman clone
+make CONSOLE="Jump 'n Bump" CORE=cores/libretro-jumpnbump # Jump 'n Bump
+
+# Engines
+make CONSOLE="NXEngine"     CORE=cores/libretro-nxengine # Cave Story
+make CONSOLE="TyrQuake"     CORE=cores/tyrquake # Quake 1
+
+# PC Emulators
+make clean CONSOLE="Vice c64sc" CORE=cores/libretro-vice EMUTYPE=x64sc # Commodore CLEAN
+make CONSOLE="Vice c64sc"   CORE=cores/libretro-vice EMUTYPE=x64sc # Commodore
+make clean CONSOLE="Vice c64sc" CORE=cores/libretro-vice EMUTYPE=x64sc # Commodore CLEAN
+make clean CONSOLE="Vice c64"   CORE=cores/libretro-vice EMUTYPE=x64 # Commodore CLEAN
+make CONSOLE="Vice c64"     CORE=cores/libretro-vice EMUTYPE=x64 # Commodore
+make clean CONSOLE="Vice c64"   CORE=cores/libretro-vice EMUTYPE=x64 # Commodore CLEAN
+make clean CONSOLE="Vice vic20" CORE=cores/libretro-vice EMUTYPE=xvic # Commodore CLEAN
+make CONSOLE="Vice vic20"   CORE=cores/libretro-vice EMUTYPE=xvic # Commodore
+make clean CONSOLE="Vice vic20" CORE=cores/libretro-vice EMUTYPE=xvic # Commodore CLEAN
+make CONSOLE="bk"           CORE=cores/bk-emulator MAKEFILE=-fMakefile.libretro # Elektronika - BK-0010/BK-0011
+make CONSOLE="O2EM"         CORE=cores/libretro-o2em # Magnavox - Odyssey2 / Philips Videopac+
+make CONSOLE="QUASI88"      CORE=cores/libretro-quasi88 # NEC PC-8000 / PC-8800
+make CONSOLE="xmil"         CORE=cores/libretro-xmil/libretro # Sharp X-1
+
+# Console Emulators
+make CONSOLE="Beetle SGX"   CORE=cores/libretro-beetle-supergrafx # NEC - PC Engine SuperGrafx
+make CONSOLE="Beetle PC-FX" CORE=cores/libretro-beetle-pcfx # NEC - PC-FX
+make CONSOLE="Beetle VB"    CORE=cores/libretro-beetle-vb # Virtual Boy
+make CONSOLE="Geolith"      CORE=cores/libretro-geolith/libretro # Neo Geo AES / MVS
+
+# Virtual machines / Fantasy consoles
+make CONSOLE="arduous"      CORE=cores/arduous # Arduboy
+make CONSOLE="Fake-08"      CORE=cores/fake-08/platform/libretro # PICO-8
+make CONSOLE="LowRes NX"    CORE=cores/lowres-nx/platform/LibRetro # LowRes NX
+
+make CONSOLE="x48"          CORE=cores/libretro-x48 # HP48 Calculator
+make CONSOLE="Tama"         CORE=cores/tamalibretro # Tamagotchi P1
+
+# Extra (Shouldn't compile unless requested)
+#make CONSOLE="CrocoDS"      CORE=cores/libretro-crocods # Amstrad - CPC
+#make CONSOLE="Beetle Lynx"  CORE=cores/libretro-beetle-lynx # Atari - Lynx
+#make clean CONSOLE=c64f     CORE=cores/libretro-frodo EMUTYPE=frodo
+#make CONSOLE=c64f           CORE=cores/libretro-frodo EMUTYPE=frodo
+#make clean CONSOLE=c64f     CORE=cores/libretro-frodo EMUTYPE=frodo
+#make clean CONSOLE=c64fc    CORE=cores/libretro-frodo EMUTYPE=frodosc
+#make CONSOLE=c64fc          CORE=cores/libretro-frodo EMUTYPE=frodosc
+#make clean CONSOLE=c64fc    CORE=cores/libretro-frodo EMUTYPE=frodosc
+#make CONSOLE="VBA Next"     CORE=cores/vba-next # gba, Too Slow
+#make CONSOLE="mGBA"         CORE=cores/mgba # gba, Too Slow
+#make CONSOLE="Nestopia"     CORE=cores/nestopia/libretro # nes, Too Slow
+#make CONSOLE="GP-GX"        CORE=cores/Genesis-Plus-GX MAKEFILE=-fMakefile.libretro # Sega (Accurate)
+
+###
+### working but major issues, not to release
+###
+
+#make -C cores/fbalpha2012/svn-current/trunk platform=sf2000 -fmakefile.libretro generate-files && make CONSOLE=fba CORE=cores/fbalpha2012/svn-current/trunk MAKEFILE=-fmakefile.libretro
+#make CONSOLE=mame2003   CORE=cores/libretro-mame2003-plus
+#make CONSOLE=mame2003mw CORE=cores/mame2003_midway
+#make CONSOLE=atarist    CORE=cores/hatari MAKEFILE=-fMakefile.libretro
+#make CONSOLE=geargrafx  CORE=../cores_not_in_git/Geargrafx/platforms/libretro
+
+###
+### test cores
+###
+
+#make CONSOLE=testadv CORE=cores/libretro-samples/tests/test_advanced
+#make CONSOLE=testwav CORE=cores/libretro-samples/audio/audio_playback_wav
 
 true

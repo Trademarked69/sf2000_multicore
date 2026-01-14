@@ -50,60 +50,6 @@ CXX_LDFLAGS += -z max-page-size=32
 CORE_OBJS += lib.o debug.o video_sf2000.o
 LOADER_OBJS=init.o main.o debug.o
 
-# CORE=cores/cannonball
-# CONSOLE=outrun
-
-#CORE=cores/ecwolf/src/libretro
-#CONSOLE=ecwolf
-
-# CORE=cores/fake-08/platform/libretro
-# CONSOLE=fake8
-
-# CORE=cores/caprice32
-# CONSOLE=cap32
-
-# CORE=cores/prboom
-# CONSOLE=prboom
-
-# CORE=cores/mame2000
-# CONSOLE=m2k
-
-# CORE=cores/vice
-# CONSOLE=vic20
-# CONSOLE=c64
-
-# CORE=cores/2048
-# MAKEFILE=-f Makefile.libretro
-# CONSOLE=2048
-
-# CORE=cores/lowres-nx/platform/LibRetro
-# CONSOLE=lownx
-
-# CORE=cores/stella2014
-# CONSOLE=a26
-
-# CORE=cores/atari5200
-# CONSOLE=a52
-
-# CORE=cores/atari800
-# CONSOLE=a800
-
-# CORE=cores/beetle-pce-fast
-# CONSOLE=pce
-
-# CORE=cores/beetle-supergrafx
-# CONSOLE=pcesgx
-
-# CORE=cores/gambatte
-# CORE=cores/tgbdual
-# CONSOLE=gb
-
-#CORE=cores/gpsp
-#CONSOLE=gba
-
-# CORE=cores/snes9x2005
-# CONSOLE=snes
-
 # Default target
 ifneq ($(CORE),)
 all: core_87000000 bisrv.asd install
@@ -122,17 +68,17 @@ core_api_dbl_chr.o: core_api.c
 
 libretro_core:
 	@$(call echo_i,"compiling $(CORE)")
-	$(MAKE) -j$(NPROC) -C $(CORE) $(MAKEFILE) platform=sf2000
+	$(MAKE) -j$(NPROC) -C "$(CORE)" $(MAKEFILE) platform=sf2000
 
 libretro_core.a: libretro_core
-	cp $(CORE)/*.a libretro_core.a
+	cp "$(CORE)"/*.a libretro_core.a
 
 libretro-common:
 	@$(call echo_i,"compiling $@")
 	$(MAKE) -j$(NPROC) -C libs/libretro-common
 
 libretro-common.a: libretro-common
-	cp -u libs/libretro-common/$@ $@
+	cp -u "libs/libretro-common/$@" "$@"
 
 core.elf: libretro_core.a libretro-common.a $(CORE_OBJS)
 	@$(call echo_i,"compiling $@")
@@ -144,7 +90,7 @@ core_87000000: core.elf
 
 loader.elf: $(LOADER_OBJS)
 	@$(call echo_i,"compiling $@")
-	$(LD) -Map $@.map $(LDFLAGS) -e __start -Ttext=$(LOADER_ADDR) bisrv_08_03.ld $(LOADER_OBJS) -o loader.elf
+	$(LD) -Map "$@".map $(LDFLAGS) -e __start -Ttext=$(LOADER_ADDR) bisrv_08_03.ld $(LOADER_OBJS) -o loader.elf
 
 loader.bin: loader.elf
 	$(Q)$(OBJCOPY) -O binary -j .text -j .rodata -j .data loader.elf loader.bin
@@ -199,8 +145,8 @@ crc: crc.c
 
 install:
 	@$(call echo_i,"install to sdcard")
-	-$(call copy_if_updated,bisrv.asd,sdcard/bios/bisrv.asd)
-	-$(call copy_if_updated,core_87000000,sdcard/cores/$(CONSOLE)/core_87000000)
+	-$(call copy_if_updated,"bisrv.asd","sdcard/bios/bisrv.asd")
+	-$(call copy_if_updated,"core_87000000","sdcard/cores/$(CONSOLE).sf2k")
 	# -rm -f sdcard/log.txt
 	@$(call echo_d,"bisrv.asd")
 	@$(call echo_d,"$(CORE)")
@@ -208,7 +154,7 @@ install:
 ifneq ($(ALPHARELEASE),)
 updatelogo:
 	@$(call echo_i,"update boot logo")
-	-$(call update_bisrv_logo,sdcard/bios/bisrv.asd)
+	-$(call update_bisrv_logo,"sdcard/bios/bisrv.asd")
 	@$(call echo_d,"$(1) logo updated")
 else
 updatelogo:
@@ -222,7 +168,7 @@ clean:
 	-rm -f loader.elf loader.bin core.elf core.elf.map core_87000000
 	-rm -f bisrv.asd crc
 	-rm -f libretro_core.a
-	$(MAKE) -j$(NPROC) -C $(CORE) $(MAKEFILE) clean platform=sf2000
+	$(MAKE) -j$(NPROC) -C "$(CORE)" $(MAKEFILE) clean platform=sf2000
 
 .PHONY: all clean
 
@@ -239,7 +185,7 @@ define echo_d
 endef
 
 define copy_if_updated
-	diff -q $(1) $(2) || (rm -rf $$(dirname $(2)) && mkdir -p $$(dirname $(2)) && cp $(1) $(2) && echo "$(1) updated")
+    diff -q $(1) $(2) || { rm -rf $(2) && mkdir -p "$(shell echo $(2) | sed 's:\([^/]*\)[/]*$$::')" && cp $(1) $(2) && echo "$(1) updated"; }
 endef
 
 define update_bisrv_logo
