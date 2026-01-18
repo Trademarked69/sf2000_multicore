@@ -5,8 +5,9 @@ SHELL:=/bin/bash
 CLEAR_LOG_ON_BOOT = 0
 # debug logging with xlog
 DEBUG_XLOG = 1
-# tweaks for the release build
-#ALPHARELEASE = 0.10
+# select which device this is for
+FROGGY_TYPE ?= SF2000
+SCREEN_SWAP ?= FALSE
 
 LCDFONT_OFFSET=0x2260
 LOADER_OFFSET=0x1500
@@ -30,6 +31,30 @@ CFLAGS += -DCLEAR_LOG_ON_BOOT=1
 endif
 ifeq ($(DEBUG_XLOG), 1)
 CFLAGS += -DDEBUG_XLOG=1
+endif
+ifeq ($(FROGGY_TYPE), SF2000)
+	BISRVLDSCRIPT := bisrv_08_03.ld
+	CORELDSCRIPT := bisrv_08_03-core.ld
+	CFLAGS += -DSF2000 -DFROGGY_MXMV=0x60
+	ifeq ($(SCREEN_SWAP), FALSE)
+		BISRVFILE := bisrv_08_03.asd
+	else
+#		GB300 screen
+		BISRVFILE := bisrv_08_03_Screen_Swap.asd
+	endif
+else ifeq ($(FROGGY_TYPE),GB300V2)
+	BISRVLDSCRIPT := bisrv_GB300_V2.ld
+	CORELDSCRIPT := bisrv_GB300_V2-core.ld
+	CFLAGS += -DGB300V2 -DFROGGY_MXMV=0x28
+	ifeq ($(SCREEN_SWAP), FALSE)
+#		GB300 screen
+		BISRVFILE := bisrv_GB300_V2.asd
+	else
+#		SF2000 screen
+		BISRVFILE := bisrv_GB300_V2_Screen_Swap.asd
+	endif
+else
+	$(error Unsupported FROGGY_TYPE: $(FROGGY_TYPE))
 endif
 ifeq ($(CONSOLE), dblcherrygb)
 CFLAGS += -DDBLCHERRY_SAVE
@@ -82,7 +107,7 @@ libretro-common.a: libretro-common
 
 core.elf: libretro_core.a libretro-common.a $(CORE_OBJS)
 	@$(call echo_i,"compiling $@")
-	$(CXX) -Wl,-Map=$@.map $(CXX_LDFLAGS) -e __core_entry__ -Tcore.ld bisrv_08_03-core.ld -o $@ \
+	$(CXX) -Wl,-Map=$@.map $(CXX_LDFLAGS) -e __core_entry__ -Tlinker_scripts/core.ld linker_scripts/$(CORELDSCRIPT) -o $@ \
 		-Wl,--start-group $(CORE_OBJS) libretro_core.a libretro-common.a -lc -Wl,--end-group
 
 core_87000000: core.elf
@@ -90,7 +115,7 @@ core_87000000: core.elf
 
 loader.elf: $(LOADER_OBJS)
 	@$(call echo_i,"compiling $@")
-	$(LD) -Map "$@".map $(LDFLAGS) -e __start -Ttext=$(LOADER_ADDR) bisrv_08_03.ld $(LOADER_OBJS) -o loader.elf
+	$(LD) -Map "$@".map $(LDFLAGS) -e __start -Ttext=$(LOADER_ADDR) linker_scripts/$(BISRVLDSCRIPT) $(LOADER_OBJS) -o loader.elf
 
 loader.bin: loader.elf
 	$(Q)$(OBJCOPY) -O binary -j .text -j .rodata -j .data loader.elf loader.bin
@@ -116,7 +141,7 @@ bisrv.asd: loader.bin lcd_font.bin crc
 		exit 1; \
 	fi
 
-	$(Q)cp assets/os/bisrv_sf2000.asd bisrv.asd
+	$(Q)cp assets/os/$(BISRVFILE) bisrv.asd
 
 	$(Q)dd if=loader.bin of=bisrv.asd bs=$$(($(LOADER_OFFSET))) seek=1 conv=notrunc 2>/dev/null
 
@@ -124,7 +149,11 @@ bisrv.asd: loader.bin lcd_font.bin crc
 
 	# note: this patch must match $(LOADER_ADDR)
 	# jal run_gba -> jal 0x80001500
-	printf "\x40\x05\x00\x0C" | dd of=bisrv.asd bs=1 seek=$$((0x35a900)) conv=notrunc
+	if [ "$(FROGGY_TYPE)" = "SF2000" ]; then \
+		printf "\x40\x05\x00\x0C" | dd of=bisrv.asd bs=1 seek=$$((0x35a900)) conv=notrunc; \
+	elif [ "$(FROGGY_TYPE)" = "GB300V2" ]; then \
+		printf "\x40\x05\x00\x0C" | dd of=bisrv.asd bs=1 seek=$$((0x35ee10)) conv=notrunc; \
+	fi
 
 	# endless loop in sys_watchdog_reboot -> j 0x80001508
 	printf "\x42\x05\x00\x08" | dd of=bisrv.asd bs=1 seek=$$((0x30d4)) conv=notrunc
@@ -133,7 +162,11 @@ bisrv.asd: loader.bin lcd_font.bin crc
 
 	# patch the buffer size for handling the save state snapshot image
 	# \x0c (768k) would be enough up to cores displaying at 640x480x2
-	printf "\x0c" | dd of=bisrv.asd bs=1 seek=$$((0x34f8b8)) conv=notrunc
+	if [ "$(FROGGY_TYPE)" = "SF2000" ]; then \
+		printf "\x0c" | dd of=bisrv.asd bs=1 seek=$$((0x34f8b8)) conv=notrunc; \
+	elif [ "$(FROGGY_TYPE)" = "GB300V2" ]; then \
+		printf "\x0c" | dd of=bisrv.asd bs=1 seek=$$((0x354214)) conv=notrunc; \
+	fi
 
 	$(Q)./crc bisrv.asd
 
@@ -145,9 +178,15 @@ crc: crc.c
 
 install:
 	@$(call echo_i,"install to sdcard")
-	-$(call copy_if_updated,"bisrv.asd","sdcard/bios/bisrv.asd")
-	-$(call copy_if_updated,"core_87000000","sdcard/cores/$(CONSOLE).sf2k")
-	# -rm -f sdcard/log.txt
+	-$(call copy_if_updated,"bisrv.asd","sdcard/$(FROGGY_TYPE)$(if $(filter TRUE,$(SCREEN_SWAP)),-screen_swap)/bios/bisrv.asd")
+	@if [ "$(SCREEN_SWAP)" = "TRUE" ]; then \
+		if [ "$(FROGGY_TYPE)" = "SF2000" ]; then \
+			printf '\x28' > "sdcard/$(FROGGY_TYPE)-screen_swap/bios/mxmv.bin"; \
+		elif [ "$(FROGGY_TYPE)" = "GB300V2" ]; then \
+			printf '\x60' > "sdcard/$(FROGGY_TYPE)-screen_swap/bios/mxmv.bin"; \
+		fi; \
+	fi
+	-$(call copy_if_updated,"core_87000000","sdcard/$(FROGGY_TYPE)/cores/$(CONSOLE).sf2k")
 	@$(call echo_d,"bisrv.asd")
 	@$(call echo_d,"$(CORE)")
 
@@ -168,7 +207,9 @@ clean:
 	-rm -f loader.elf loader.bin core.elf core.elf.map core_87000000
 	-rm -f bisrv.asd crc
 	-rm -f libretro_core.a
-	$(MAKE) -j$(NPROC) -C "$(CORE)" $(MAKEFILE) clean platform=sf2000
+	@if [ -n "$(CORE)" ]; then \
+		$(MAKE) -j$(NPROC) -C "$(CORE)" $(MAKEFILE) clean platform=sf2000; \
+	fi
 
 .PHONY: all clean
 

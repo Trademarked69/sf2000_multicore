@@ -85,17 +85,26 @@ static bool g_osd_small_messages = false;
 
 static void dummy_retro_run(void);
 
-static int *fw_fps_counter_enable = (int *)0x80c0b5e0;	// displayfps
+// FPS Counter
+#if defined(SF2000)
+int *fw_fps_counter_enable = (int *)0x80c0b5e0;	// displayfps
 static int *fw_fps_counter = (int *)0x80c0b5dc;
 static char *fw_fps_counter_format = (char *)0x8099bdf0;	// "%2d/%2d"
+#elif defined(GB300V2)
+int *fw_fps_counter_enable = (int *)0x80c5abcc;	// displayfps
+static int *fw_fps_counter = (int *)0x80c5abc8;
+static char *fw_fps_counter_format = (char *)0x809fb9ec;	// "%2d/%2d"
+#endif
 
+#define KEYMAP_SIZE 12
+
+// Forward declarations to fix implicit declaration warnings
 void build_game_config_filepath(char *filepath, size_t size, const char *game_filepath, const char *library_name);
 void config_add_file(const char *filepath);
 void save_srm(const char slot);
 void load_srm(const char slot);
 void shutdown_game(void);
-
-#define KEYMAP_SIZE 12
+extern char jal_run_emulator_menu;
 
 static bool gb_temporary_osd = false;
 
@@ -648,11 +657,16 @@ struct retro_core_t *__core_entry__(void) __attribute__((section(".init.core_ent
 
 struct retro_core_t *__core_entry__(void)
 {
-
 	os_disable_interrupt();
+	// https://gitlab.com/kobily/sf2000_multicore/-/commit/328bce4173316a6ea0afe4c360ee4f3d5b951c19 condensed to core's side with $gp value fetched from _start
+	// Values are the same between gb300 V2 and SF2000
+	*(unsigned *)0x80049744 = *(unsigned *)0x80001270; // lui	$gp
+	*(unsigned *)0x80049748 = *(unsigned *)0x80001274; // addiu	$gp
+	__builtin___clear_cache((void *)0x80049744, (void *)0x8004974c);
+
 	// Patch Pause Menu
-	PATCH_JAL(0x80358e48, dummy_run_emulator_menu);
-	__builtin___clear_cache((void *)0x80358e48, (void *)0x80358e48+4);
+	PATCH_JAL((uintptr_t)&jal_run_emulator_menu, dummy_run_emulator_menu);
+	__builtin___clear_cache(&jal_run_emulator_menu, &jal_run_emulator_menu+4);
 	os_enable_interrupt();
 	clear_bss();
 
@@ -822,7 +836,6 @@ bool wrap_retro_load_game(const struct retro_game_info* info) {
 	memcpy(&saved_game_info, info, sizeof(struct retro_game_info)); // Save the retro_game_info incase we want to reset
 
 	bool ret;
-
 	xlog("core=%s-%s need_fullpath=%d\n", sysinfo.library_name, sysinfo.library_version, sysinfo.need_fullpath);
 
 	// no need to strcpy, because info->path string should be valid during the execution of the game

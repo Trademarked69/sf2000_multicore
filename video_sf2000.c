@@ -403,8 +403,9 @@ void video_options(config_file_t *conf)
 	}
 }
 
-void video_cleanup(void)
-{
+void video_cleanup(void) {
+	if (mxmv == 0) get_mxmv();
+	
 	if (tearing_fix == ROTATE || scaling_mode != STOCK) {
 		patch__run_screen_write(&run_osd_region_write);
 	}
@@ -418,7 +419,7 @@ void video_cleanup(void)
 	apply_rgb_timings();
 
 	patch__st7789v_caset_raset(320, 240);
-	lcd_memory_data_access_ctl(0x60); // only for SF2000 FIXME
+	lcd_memory_data_access_ctl(mxmv);
 	// fixable by parsing m_st7789v_init
 
 	swap_region_width_height(); // second time thus cancels out

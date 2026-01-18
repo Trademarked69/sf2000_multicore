@@ -23,6 +23,15 @@ extern unsigned long GPIOTCTRL;
 static char *lcd_buf = NULL;
 static unsigned lcd_y, lcd_x;
 
+uint8_t mxmv = 0;
+void get_mxmv() {
+	FILE *fp = fopen("/mnt/sda1/bios/mxmv.bin", "rb");
+	if (fp) {
+		fw_fread(&mxmv, 1, 1, fp);
+		fclose(fp);
+	} else mxmv = FROGGY_MXMV;
+}
+
 void lcd_init(void)
 {
 	if (!lcd_buf)
@@ -102,13 +111,14 @@ void lcd_send_data(unsigned short data)
 	lcd_send(data);
 }
 
-static void lcd_flush(unsigned short text_color, unsigned short background_color)
-{
+static void lcd_flush(unsigned short text_color, unsigned short background_color) {
+	if (mxmv == 0) get_mxmv();
+
 	lcd_pinmux_gpio();
 
 	// applicable ONLY to SF2000's screen FIXME
 	lcd_send_cmd(0x36); // MADCTL
-	lcd_send_data(0x60); // MX (X mirror) MV (rotation)
+	lcd_send_data(mxmv); // MX (X mirror) MV (rotation)
 
 	lcd_send_cmd(0x2a); // CASET
 	lcd_send_data(0);

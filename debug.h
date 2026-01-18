@@ -5,6 +5,9 @@
 extern "C" {
 #endif
 
+void get_mxmv();
+uint8_t mxmv;
+
 void lcd_pinmux_gpio(void);
 void lcd_send_cmd(unsigned char);
 void lcd_send_data(unsigned short);
