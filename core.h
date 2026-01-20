@@ -26,9 +26,9 @@ int load_rgb565_image(const char* filename, uint16_t* framebuffer, int width, in
 // Wrap run_game so we can call it from frogui and retro_deinit
 void wrap_run_game(const char *filename, int load_state);
 
-// Custom functions manually added do doublecherry's libretro.h
-int retro_dblchry_emulated_count();
-size_t retro_dblchry_get_sram_size(int slot);
-void *retro_dblchry_get_sram_ptr(int slot);
+// Custom functions manually added to tgb dual's and doublecherry's libretro.h
+int retro_dual_emulated_count();
+size_t retro_dual_get_sram_size(int slot);
+void *retro_dual_get_sram_ptr(int slot);
 
 #endif

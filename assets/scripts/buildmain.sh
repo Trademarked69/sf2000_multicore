@@ -7,7 +7,7 @@ make clean CONSOLE="FCEUmm"       CORE=cores/libretro-fceumm # Famicom Disk Syst
 make clean CONSOLE="Snes9x 2002"  CORE=cores/working-cores/snes9x2002 # Super Nintendo Entertainment System - Super Famicom
 make clean CONSOLE="Snes9x 2005"  CORE=cores/working-cores/snes9x2005 # Super Nintendo Entertainment System (Fast) - Super Famicom (Fast)
 make clean CONSOLE="Gambatte"     CORE=cores/working-cores/libretro-gambatte # Game Boy + Color
-make clean CONSOLE="TGB Dual"     CORE=cores/libretro-tgbdual # Game Boy + Color (2P)
+make clean CONSOLE="TGB Dual"     CORE=cores/working-cores/libretro-tgbdual # Game Boy + Color (2P)
 make clean CONSOLE="gpSP"         CORE=cores/working-cores/gpsp # Game Boy Advance
 make clean CONSOLE="gpSP-F"       CORE=cores/working-cores/gpsp-ff # Game Boy Advance (Fast)
 make clean CONSOLE="gpSP-FF"      CORE=cores/working-cores/gpsp-ff EXTRA_CFLAGS="-DSF2000_OPTIMIZATION_LEVEL=3" # Game Boy Advance (FFast)
@@ -24,7 +24,7 @@ make CONSOLE="FCEUmm"       CORE=cores/libretro-fceumm # Famicom Disk System / N
 make CONSOLE="Snes9x 2002"  CORE=cores/working-cores/snes9x2002 # Super Nintendo Entertainment System - Super Famicom
 make CONSOLE="Snes9x 2005"  CORE=cores/working-cores/snes9x2005 # Super Nintendo Entertainment System (Fast) - Super Famicom (Fast)
 make CONSOLE="Gambatte"     CORE=cores/working-cores/libretro-gambatte # Game Boy + Color
-make CONSOLE="TGB Dual"     CORE=cores/libretro-tgbdual # Game Boy + Color (2P)
+make CONSOLE="TGB Dual"     CORE=cores/working-cores/libretro-tgbdual # Game Boy + Color (2P)
 make CONSOLE="gpSP"         CORE=cores/working-cores/gpsp # Game Boy Advance
 make CONSOLE="gpSP-F"       CORE=cores/working-cores/gpsp-ff # Game Boy Advance (Fast)
 make clean CONSOLE="gpSP-F" CORE=cores/working-cores/gpsp-ff # Game Boy Advance (Fast) Clean
@@ -45,7 +45,7 @@ make clean CONSOLE="FCEUmm"       CORE=cores/libretro-fceumm # Famicom Disk Syst
 make clean CONSOLE="Snes9x 2002"  CORE=cores/working-cores/snes9x2002 # Super Nintendo Entertainment System - Super Famicom
 make clean CONSOLE="Snes9x 2005"  CORE=cores/working-cores/snes9x2005 # Super Nintendo Entertainment System (Fast) - Super Famicom (Fast)
 make clean CONSOLE="Gambatte"     CORE=cores/working-cores/libretro-gambatte # Game Boy + Color
-make clean CONSOLE="TGB Dual"     CORE=cores/libretro-tgbdual # Game Boy + Color (2P)
+make clean CONSOLE="TGB Dual"     CORE=cores/working-cores/libretro-tgbdual # Game Boy + Color (2P)
 make clean CONSOLE="gpSP"         CORE=cores/working-cores/gpsp # Game Boy Advance
 make clean CONSOLE="gpSP-F"       CORE=cores/working-cores/gpsp-ff # Game Boy Advance (Fast)
 make clean CONSOLE="gpSP-FF"      CORE=cores/working-cores/gpsp-ff EXTRA_CFLAGS="-DSF2000_OPTIMIZATION_LEVEL=3" # Game Boy Advance (FFast)
@@ -62,7 +62,7 @@ make FROGGY_TYPE=GB300V2 CONSOLE="FCEUmm"       CORE=cores/libretro-fceumm # Fam
 make FROGGY_TYPE=GB300V2 CONSOLE="Snes9x 2002"  CORE=cores/working-cores/snes9x2002 # Super Nintendo Entertainment System - Super Famicom
 make FROGGY_TYPE=GB300V2 CONSOLE="Snes9x 2005"  CORE=cores/working-cores/snes9x2005 # Super Nintendo Entertainment System (Fast) - Super Famicom (Fast)
 make FROGGY_TYPE=GB300V2 CONSOLE="Gambatte"     CORE=cores/working-cores/libretro-gambatte # Game Boy + Color
-make FROGGY_TYPE=GB300V2 CONSOLE="TGB Dual"     CORE=cores/libretro-tgbdual # Game Boy + Color (2P)
+make FROGGY_TYPE=GB300V2 CONSOLE="TGB Dual"     CORE=cores/working-cores/libretro-tgbdual # Game Boy + Color (2P)
 make FROGGY_TYPE=GB300V2 CONSOLE="gpSP"         CORE=cores/working-cores/gpsp # Game Boy Advance
 make FROGGY_TYPE=GB300V2 CONSOLE="gpSP-F"       CORE=cores/working-cores/gpsp-ff # Game Boy Advance (Fast)
 make FROGGY_TYPE=GB300V2 clean CONSOLE="gpSP-F" CORE=cores/working-cores/gpsp-ff # Game Boy Advance (Fast) Clean

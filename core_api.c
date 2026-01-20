@@ -246,9 +246,11 @@ void build_srm_filepath(char *filepath, size_t size, const char *game_filepath, 
 	snprintf(filepath, size, "%s/%s.%s", directory, basename, extension);
 }
 
-#ifdef DBLCHERRY_SAVE
+#ifdef DUAL_SAVE
+void load_srm_id(const char slot, int position);
+void save_srm_id(const char slot, int position);
 void save_srm(const char slot){
-	int count = retro_dblchry_emulated_count();
+	int count = retro_dual_emulated_count();
 	for(int i = 0; i < count; i++){
 		save_srm_id(slot, i);
 	}
@@ -267,24 +269,24 @@ void save_srm_id(const char slot, int position){
 	}
 	build_srm_filepath(ram_filepath, sizeof(ram_filepath), s_game_filepath, ext, 8);
 	xlog("save_srm: file=%s\n", ram_filepath);
-	size_t save_size = retro_dblchry_get_sram_size(position);
+	size_t save_size = retro_dual_get_sram_size(position);
 	if(save_size == 0)
 		return;
 	FILE *ram_file = fopen(ram_filepath, "wb");
 	if (!ram_file)
 		return;
-	fwrite(retro_dblchry_get_sram_ptr(position), save_size, 1, ram_file);
+	fwrite(retro_dual_get_sram_ptr(position), save_size, 1, ram_file);
 	fclose(ram_file);
 	fs_sync(ram_filepath);
 }
 void load_srm(const char slot){
-	int count = retro_dblchry_emulated_count();
+	int count = retro_dual_emulated_count();
 	for(int i = 0; i < count; i++){
 		load_srm_id(slot, i);
 	}
 }
 void load_srm_id(const char slot, int position){
-	size_t save_size = retro_dblchry_get_sram_size(position);
+	size_t save_size = retro_dual_get_sram_size(position);
 	char ram_filepath[MAXPATH];
 	char ext[9];
 	if(position == 0){
@@ -311,12 +313,12 @@ void load_srm_id(const char slot, int position){
 		fclose(ram_file);
 		return;
 	}
-	fread(retro_dblchry_get_sram_ptr(position), 1, save_size, ram_file);
+	fread(retro_dual_get_sram_ptr(position), 1, save_size, ram_file);
 	fclose(ram_file);
 }
 #endif
 
-#ifndef DBLCHERRY_SAVE
+#ifndef DUAL_SAVE
 void save_srm(const char slot){
 	char ram_filepath[MAXPATH];
 	char ext[5];

@@ -56,11 +56,11 @@ else ifeq ($(FROGGY_TYPE),GB300V2)
 else
 	$(error Unsupported FROGGY_TYPE: $(FROGGY_TYPE))
 endif
-ifeq ($(CONSOLE), dblcherrygb)
-CFLAGS += -DDBLCHERRY_SAVE
-CORE_OBJS=core_api_dbl_chr.o 
+ifneq ($(filter DBLCherryGB TGB Dual,$(CONSOLE)),)
+    CFLAGS += -DDUAL_SAVE
+    CORE_OBJS = core_api_dual.o
 else
-CORE_OBJS=core_api.o 
+    CORE_OBJS = core_api.o
 endif
 
 LDFLAGS := -EL -nostdlib -z max-page-size=32
@@ -88,7 +88,7 @@ endif
 %.o: %.s
 	$(CC) $(CFLAGS) -o $@ -c $<
 
-core_api_dbl_chr.o: core_api.c
+core_api_dual.o: core_api.c
 	$(CC) $(CFLAGS) -o $@ -c $<
 
 libretro_core:
