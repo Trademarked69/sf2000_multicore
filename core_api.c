@@ -26,6 +26,7 @@
 // Select = 1, Start = 8
 // A = 2000, B = 4000. X = 400, Y = 800, L = 1000, R = 8000
 #define HOTKEYSCREENSHOT 0x9008 // press L + R + Start
+#define HOTKEYCHEATS 0x9001 // press L + R + Select
 #define HOTKEYSAVESTATE 0x9400 // press L + R + X
 #define HOTKEYLOADSTATE 0x9800 // press L + R + Y
 #define HOTKEYINCREASESTATE 0x9020 // press L + R + Right
@@ -86,6 +87,7 @@ static bool g_enable_savestate_hotkeys = true;
 static bool g_enable_screenshot_hotkey = true;
 static bool g_enable_osd = true;
 static bool g_osd_small_messages = false;
+static bool g_enable_cheats_hotkey = false;
 static unsigned prev_width = 0;
 static unsigned prev_height = 0;
 
@@ -103,6 +105,12 @@ static char *fw_fps_counter_format = (char *)0x809fb9ec;	// "%2d/%2d"
 #endif
 
 #define KEYMAP_SIZE 12
+
+#define MAX_CHEAT_LENGTH 200
+#define MAX_CHEATS 100
+static char *gc_cheats[MAX_CHEATS];  // Array of strings to store lines
+static int gi_cheat_count = 0;  // Keeps track of the number of lines read
+static bool gb_cheats_enabled = false;
 
 // Forward declarations to fix implicit declaration warnings
 void build_game_config_filepath(char *filepath, size_t size, const char *game_filepath, const char *library_name);
@@ -239,6 +247,58 @@ void load_keymap(const char *s_game_filepath)
 
     set_keymap(keymap, 8);
 	xlog("Keymap file %s loaded\n", kmp_filepath);
+}
+
+// Load cheats for a game
+void load_cheats(const char *s_game_filepath) {
+	char cht_filepath[MAXPATH];
+
+	char basename[MAXPATH];
+	fill_pathname_base(basename, s_game_filepath, sizeof(basename));
+	path_remove_extension(basename);
+
+	snprintf(cht_filepath, sizeof(cht_filepath), "%s/%s/cheats/%s.cht", CONFIG_DIRECTORY, sysinfo.library_name, basename);
+	xlog("Checking for cheat codes in %s...\n", cht_filepath);
+
+	FILE *h_file = fopen(cht_filepath, "r");
+	if (!h_file) return;
+
+	char buffer[MAX_CHEAT_LENGTH]; // Temporary buffer
+	while (fgets(buffer, MAX_CHEAT_LENGTH, h_file) && gi_cheat_count < MAX_CHEATS) {
+		// Remove newline character at the end if exists
+		buffer[strcspn(buffer, "\n\r")] = 0;
+
+		// Skip empty lines and comments
+		if (buffer[0] == '\0' || buffer[0] == '#' || buffer[0] == ';')
+    		continue;
+
+		// Allocate memory for the line and store it in the global array
+		gc_cheats[gi_cheat_count] = (char *)malloc(strlen(buffer) + 1);
+		if (gc_cheats[gi_cheat_count]) {
+			strcpy(gc_cheats[gi_cheat_count], buffer);
+			gi_cheat_count++;
+		}
+	}
+	fclose(h_file);
+	xlog("Cheat codes loaded\n");
+}
+
+void unload_cheats() {
+	for (int i = 0; i < gi_cheat_count; i++) {
+        free(gc_cheats[i]);
+		gc_cheats[i] = NULL;
+    }
+	gi_cheat_count = 0;
+}
+
+void toggle_cheat() {
+	gb_cheats_enabled = !gb_cheats_enabled;
+	if (gb_cheats_enabled) {
+		retro_cheat_reset();
+		for (int i = 0; i < gi_cheat_count; i++) {
+			retro_cheat_set(i, true, gc_cheats[i]);
+		}
+	} else retro_cheat_reset();
 }
 
 void build_srm_filepath(char *filepath, size_t size, const char *game_filepath, const char *extension, size_t extension_size) {
@@ -497,7 +557,17 @@ void wrap_retro_run(void) {
 				show_osd_message(osd_message);
             }
             break;
-                
+
+        case HOTKEYCHEATS:       
+			// Cheats
+			g_joy_state = 0; 
+			if (os_get_tick_count() - g_osd_time > 1000 && g_enable_cheats_hotkey) {
+				toggle_cheat();
+				g_osd_small_messages ? sprintf(osd_message, "C:%c", gb_cheats_enabled ? 'E' : 'D') : sprintf(osd_message, "Cheats: %s", gb_cheats_enabled ? "Enabled" : "Disabled");
+				show_osd_message(osd_message);
+			}
+			break;
+
         case HOTKEYSAVESTATE:
 			// Save current state
 			g_joy_state = 0; 
@@ -622,6 +692,7 @@ void wrap_retro_run(void) {
 }
 
 void wrap_retro_unload_game(void){
+	if (g_enable_cheats_hotkey) unload_cheats();
 	save_srm(0);
 	if (g_auto_save_load) {
 		if (state_framebuffer) state_save(g_auto_save_load_slot, state_framebuffer, state_fb_width, state_fb_height);
@@ -1054,6 +1125,10 @@ bool wrap_retro_load_game(const struct retro_game_info* info) {
 		
 		// load keymap
 		load_keymap(s_game_filepath);
+
+		// load cheats
+		config_get_bool(s_core_config, "sf2000_enable_cheats_hotkey", &g_enable_cheats_hotkey);
+		if (g_enable_cheats_hotkey) load_cheats(s_game_filepath);
 
 		video_options(s_core_config);
 
