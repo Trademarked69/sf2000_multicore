@@ -15,6 +15,14 @@ enum tvsystem {
 	RGB_LCD	= 0x16 // LINE_800x480_60 hacked for RGB output by HiChip
 };
 
+typedef enum scaling_mode_enum {
+    STOCK,
+    CORE_PROVIDED,
+    FULL_SCREEN,
+    SQUARE_PIXELS,
+    CUSTOM
+} scaling_mode_enum;
+
 struct vp_init_info; // all of it's rather large thus better patched in-place
 
 extern void get_vp_init_low_lcd_para(struct vp_init_info *);

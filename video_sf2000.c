@@ -39,14 +39,8 @@ static enum {
 static enum VPO_RGB_CLOCK rgb_clock = VPO_RGB_CLOCK_9M;
 static unsigned h_total_len = 477, v_total_len = 326; // 9 MHz / 477 / 326 = 57.88 Hz
 
-static enum {
-	STOCK,
-	CORE_PROVIDED,
-	FULL_SCREEN,
-	SQUARE_PIXELS,
-	CUSTOM
-} scaling_mode = CORE_PROVIDED;
-static double g_ratio = 4.0 / 3.0;
+scaling_mode_enum scaling_mode = CORE_PROVIDED;
+double g_ratio = 4.0 / 3.0;
 
 static bool g_filtered = true;
 

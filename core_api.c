@@ -61,8 +61,10 @@ static void wrap_retro_run(void);
 static void log_cb(enum retro_log_level level, const char *fmt, ...);
 
 static const char *s_game_filepath = NULL;
-static int state_load(const char *frontend_state_filepath);
-static int state_save(const char *frontend_state_filepath);
+int wrap_state_load(const char *frontend_state_filepath);
+int wrap_state_save(const char *frontend_state_filepath);
+int state_load(int save_slot);
+int state_save(int save_slot, uint16_t* emu_fb, uint32_t fb_width, uint32_t fb_height);
 
 static uint16_t* s_rgb565_convert_buffer = NULL;
 static void enable_xrgb8888_support();
@@ -78,10 +80,14 @@ static bool g_fps_counter = false;
 static void frameskip_cb(BOOL flag);
 static bool g_per_state_srm = false;
 static bool g_per_core_srm = false;
+static bool g_auto_save_load = false;
+static int g_auto_save_load_slot = 10;
 static bool g_enable_savestate_hotkeys = true;
 static bool g_enable_screenshot_hotkey = true;
 static bool g_enable_osd = true;
 static bool g_osd_small_messages = false;
+static unsigned prev_width = 0;
+static unsigned prev_height = 0;
 
 static void dummy_retro_run(void);
 
@@ -104,7 +110,11 @@ void config_add_file(const char *filepath);
 void save_srm(const char slot);
 void load_srm(const char slot);
 void shutdown_game(void);
+void save_bmp(const void *data, unsigned width, unsigned height, char *filename);
 extern char jal_run_emulator_menu;
+static uint32_t state_fb_height, state_fb_width;
+static size_t state_framebuffer_size;
+static uint16_t *state_framebuffer = NULL;
 
 static bool gb_temporary_osd = false;
 
@@ -150,7 +160,6 @@ typedef struct {
 #pragma pack(pop)
 
 static int screenshot_counter = 1; // Counter for screenshot filenames
-static bool capture_screenshot = false;  // Capture screenshot flag
 
 struct retro_core_t core_exports = {
    .retro_init = wrap_retro_init,
@@ -189,6 +198,7 @@ int create_dir(const char *path) {
 	if (fs_access(path, 0) != 0) {
 		xlog("filepath: creating %s\n", path);
         fs_mkdir(path, 0755);
+		fs_sync(path);
     }
 }
 
@@ -387,6 +397,79 @@ bool config_entry_exists(const config_file_t *conf, const char *key)
     return false;
 }
 
+void save_bmp(const void *data, unsigned width, unsigned height, char *filename) {
+    unsigned char* framebuffer = (unsigned char*)data;
+    unsigned char* img_data = (unsigned char*)malloc(width * height * 3);
+
+    if (g_xrgb888) {
+        // If it's XRGB8888 format (32-bit per pixel), we need to extract R, G, B components
+        for (unsigned i = 0; i < width * height; i++) {
+            uint32_t color = ((uint32_t*)data)[i];
+
+            // Extract RGB components
+            uint8_t r = (color >> 16) & 0xFF;
+            uint8_t g = (color >> 8) & 0xFF;
+            uint8_t b = color & 0xFF;
+
+            // Store in img_data (24-bit color, RGB order)
+            img_data[i * 3 + 0] = b;
+            img_data[i * 3 + 1] = g;
+            img_data[i * 3 + 2] = r;
+        }
+    } else {
+        // If it's RGB565 format, convert to RGB888 (24-bit)
+        for (unsigned i = 0; i < width * height; i++) {
+            uint16_t color = ((uint16_t*)data)[i];
+
+            // Extract RGB565 components
+            uint8_t r = (color >> 11) & 0x1F;
+            uint8_t g = (color >> 5) & 0x3F;
+            uint8_t b = color & 0x1F;
+
+            // Convert to 8-bit RGB (scale 5-bit to 8-bit)
+            r = (r << 3) | (r >> 2);
+            g = (g << 2) | (g >> 4);
+            b = (b << 3) | (b >> 2);
+
+            // Store in img_data (24-bit color, RGB order)
+            img_data[i * 3 + 0] = b;  
+            img_data[i * 3 + 1] = g;  
+            img_data[i * 3 + 2] = r; 
+        }
+    }
+
+    // BMP Header setup
+    BMPHeader bmp_header = {0};
+    BMPInfoHeader bmp_info_header = {0};
+
+    bmp_header.bfType = 0x4D42;  // 'BM' in little-endian
+    bmp_header.bfOffBits = sizeof(BMPHeader) + sizeof(BMPInfoHeader);
+    bmp_header.bfSize = bmp_header.bfOffBits + width * height * 3;
+
+    bmp_info_header.biSize = sizeof(BMPInfoHeader);
+    bmp_info_header.biWidth = width;
+    bmp_info_header.biHeight = -height;  // Negative height to indicate top-down BMP
+    bmp_info_header.biPlanes = 1;
+    bmp_info_header.biBitCount = 24;  // 24 bits per pixel (RGB)
+    bmp_info_header.biSizeImage = width * height * 3;
+
+    FILE *bmp_file = fopen(filename, "wb");
+    if (bmp_file) {
+        // Write BMP header and info header
+        fwrite(&bmp_header, sizeof(BMPHeader), 1, bmp_file);
+        fwrite(&bmp_info_header, sizeof(BMPInfoHeader), 1, bmp_file);
+
+        fwrite(img_data, 1, width * height * 3, bmp_file);
+
+        fclose(bmp_file);
+		fs_sync(filename);
+        xlog("Screenshot saved to %s\n", filename);
+    } else xlog("Failed to save screenshot\n");
+
+    free(img_data);
+    screenshot_counter++;
+}
+
 void wrap_retro_run(void) {
 	// Disable the osd message after 2 seconds
 	if (gb_temporary_osd) {
@@ -404,7 +487,14 @@ void wrap_retro_run(void) {
 			// Screenshot
 			g_joy_state = 0; 
 			if (os_get_tick_count() - g_osd_time > 1000 && g_enable_screenshot_hotkey) {
-                capture_screenshot = true;
+				char filename[MAXPATH];
+				char basename[MAXPATH];
+				fill_pathname_base(basename, s_game_filepath, sizeof(basename));
+				path_remove_extension(basename);
+    			sprintf(filename, "/mnt/sda1/%s_screenshot_%d.bmp", basename, screenshot_counter);
+				save_bmp(gp_run_osd_data, g_run_osd_width, g_run_osd_height, filename);
+				g_osd_small_messages ? sprintf(osd_message, "Saved") : sprintf(osd_message, "Screenshot Saved");
+				show_osd_message(osd_message);
             }
             break;
                 
@@ -412,7 +502,7 @@ void wrap_retro_run(void) {
 			// Save current state
 			g_joy_state = 0; 
 			if (os_get_tick_count() - g_osd_time > 1000 && g_enable_savestate_hotkeys) {
-                state_save("");
+                state_save(slot_state, gp_run_osd_data, g_run_osd_width, g_run_osd_height);
                 g_osd_small_messages ? sprintf(osd_message, "S:%d", slot_state) : sprintf(osd_message, "Save: %d", slot_state);
                 show_osd_message(osd_message);
             }
@@ -422,7 +512,7 @@ void wrap_retro_run(void) {
 			// Load current state
 			g_joy_state = 0; 
 			if (os_get_tick_count() - g_osd_time > 1000 && g_enable_savestate_hotkeys) {
-                state_load("");
+                state_load(slot_state);
                 g_osd_small_messages ? sprintf(osd_message, "L:%d", slot_state) : sprintf(osd_message, "Load: %d", slot_state);
                 show_osd_message(osd_message);
             }
@@ -533,6 +623,11 @@ void wrap_retro_run(void) {
 
 void wrap_retro_unload_game(void){
 	save_srm(0);
+	if (g_auto_save_load) {
+		if (state_framebuffer) state_save(g_auto_save_load_slot, state_framebuffer, state_fb_width, state_fb_height);
+		else state_save(g_auto_save_load_slot, gp_run_osd_data, g_run_osd_width, g_run_osd_height);
+		if (g_per_state_srm) save_srm(g_auto_save_load_slot);
+	}
 	retro_unload_game();
 }
 
@@ -616,14 +711,13 @@ void wrap_run_game(const char *filename, int load_state) {
 
 // Run the Menu core as a method of exiting
 void shutdown_game(void) {
-	// Calculate the size of the framebuffer and allocate memory for the framebuffer
+	// Unload the game before anything else to preserve framebuffer
+	wrap_retro_unload_game();
+
+	// Init a black framebuffer to black out the screen before loading a new game
     size_t framebuffer_size = 640 * 480 * sizeof(uint16_t);
     uint16_t* framebuffer = (uint16_t*)malloc(framebuffer_size);
-
-    // Initialize the framebuffer to black so we black out the screen before loading a new game
     memset(framebuffer, 0x0000, framebuffer_size);
-
-	// Calculate pixel pitch
 	uint16_t pixel_pitch = 640 * sizeof(uint16_t);
 
 	// Write framebuffer to screen then free it
@@ -634,8 +728,7 @@ void shutdown_game(void) {
 	strcpy(ptr_gs_run_game_file, "menu;p.gba");
 	strcpy(ptr_gs_run_game_name, "FrogUI");
 
-	// Unload the game and deinit before running the menu
-	wrap_retro_unload_game();
+	// Deinit before running the menu
 	wrap_retro_deinit();
 	run_game("/mnt/sda1/ROMS/menu;p.gba", 0);
 }
@@ -643,13 +736,28 @@ void shutdown_game(void) {
 // Patch pause menu
 int dummy_run_emulator_menu(void) {
 	save_srm(0); // Save before loading the pause menu (incase of crashes + replace savesrm hotkey)
+
+	// Save a copy of the framebuffer before opening
+	// Needed for save states
+	state_fb_width = g_run_osd_width;
+	state_fb_height = g_run_osd_height;
+    state_framebuffer_size = state_fb_width * state_fb_height * 2;
+    state_framebuffer = malloc(state_framebuffer_size);
+    memcpy(state_framebuffer, gp_run_osd_data, state_framebuffer_size);
+
 	unsigned int run_emulator_menu_response = run_emulator_menu();
 	if (g_enable_frogui_patch) {
 		if (run_emulator_menu_response == 1) { // Replace quit button
 			shutdown_game();
 		}
+		free(state_framebuffer);
+		state_framebuffer = NULL;
 		return 0;
-	} else return run_emulator_menu_response;
+	} else {
+		free(state_framebuffer);
+		state_framebuffer = NULL;
+		return run_emulator_menu_response;
+	}
 }
 
 // __core_entry__ must be placed at a known location in the binary (at the beginning)
@@ -850,8 +958,8 @@ bool wrap_retro_load_game(const struct retro_game_info* info) {
 	config_add_file(config_game_filepath);
 
 	// setup load/save state handlers
-	gfn_state_load = state_load;
-	gfn_state_save = state_save;
+	gfn_state_load = wrap_state_load;
+	gfn_state_save = wrap_state_save;
 
 	gfn_frameskip = NULL;
 
@@ -955,6 +1063,10 @@ bool wrap_retro_load_game(const struct retro_game_info* info) {
 		// show FPS
 		config_get_bool(s_core_config, "sf2000_show_fps", &g_show_fps);
 
+		// Auto load save states
+		config_get_bool(s_core_config, "sf2000_auto_save_load", &g_auto_save_load);
+		config_get_uint(s_core_config, "sf2000_auto_save_load_slot", &g_auto_save_load_slot);
+
 		// per state srm
 		config_get_bool(s_core_config, "sf2000_per_state_srm", &g_per_state_srm);
 		// per core srm
@@ -981,6 +1093,11 @@ bool wrap_retro_load_game(const struct retro_game_info* info) {
 		retro_set_controller_port_device(1, RETRO_DEVICE_JOYPAD);
 
 		load_srm(0);
+
+		if (g_auto_save_load) {
+			state_load(g_auto_save_load_slot);
+			if (g_per_state_srm) load_srm(g_auto_save_load_slot);
+		}
 	}
 
 	return ret;
@@ -1047,10 +1164,25 @@ bool wrap_environ_cb(unsigned cmd, void *data)
 
 		case RETRO_ENVIRONMENT_SET_GEOMETRY:
 		{
-			const struct retro_game_geometry *geom = (const struct retro_game_geometry*)data;
-            log_cb(RETRO_LOG_INFO, "[Environ]: SET_GEOMETRY: %ux%u, Aspect: %.3f.\n",
-				geom->base_width, geom->base_height, geom->aspect_ratio);
-			break;
+    		const struct retro_game_geometry *geom = (const struct retro_game_geometry*)data;
+    		log_cb(RETRO_LOG_INFO, "[Environ]: SET_GEOMETRY: %ux%u, Aspect: %.3f.\n", geom->base_width, geom->base_height, geom->aspect_ratio);
+
+    		// Check if resolution actually changed
+    		if (geom->base_width != prev_width || geom->base_height != prev_height) {
+				extern double g_ratio;
+				extern scaling_mode_enum scaling_mode;
+				struct retro_system_av_info info;
+				if (scaling_mode == CORE_PROVIDED) {
+					retro_get_system_av_info(&info);
+					if (info.geometry.aspect_ratio <= 0.1f)
+						g_ratio = 1.0 * info.geometry.base_width / info.geometry.base_height;
+					else
+						g_ratio = info.geometry.aspect_ratio;
+				}
+        		prev_width = geom->base_width;
+        		prev_height = geom->base_height;
+    		}
+    		break;
 		}
 
 		case RETRO_ENVIRONMENT_SET_PIXEL_FORMAT:
@@ -1164,25 +1296,9 @@ void log_cb(enum retro_log_level level, const char *fmt, ...)
 #endif
 }
 
-
-char build_state_filepath(char *state_filepath, size_t size, const char *game_filepath, const char *frontend_state_filepath)
-{
-//	"/mnt/sda1/ROMS/pce/Alien Crush.pce"	->
-//	"/mnt/sda1/saves/savestates/[core]/Alien Crush.state[slot]"
-
-	// last char is the save slot number
-	char save_slot = frontend_state_filepath[strlen(frontend_state_filepath) - 1];
-
-	if (strlen(frontend_state_filepath) == 0) save_slot = slot_state + '0'; //To convert integer to char only 0 to 9 will be converted. 
-
-	if (strlen(frontend_state_filepath) != 0) { 
-		char frontend_state_directory[MAXPATH];
-		strcpy(frontend_state_directory, frontend_state_filepath);
-		char *last_slash = strrchr(frontend_state_directory, '/');
-		*last_slash = '\0';
-		create_dir(frontend_state_directory); // Make sure frontend_state_filepath directory exists
-	}
-
+void build_state_filepath(char *state_filepath, size_t size, const char *game_filepath, int save_slot) {
+	//	"/mnt/sda1/ROMS/pce/Alien Crush.pce"	->
+	//	"/mnt/sda1/saves/savestates/[core]/Alien Crush.state[slot]"
 	char basename[MAXPATH];
 	char directory[MAXPATH];
 	fill_pathname_base(basename, game_filepath, sizeof(basename));
@@ -1198,14 +1314,45 @@ char build_state_filepath(char *state_filepath, size_t size, const char *game_fi
 		strcat(directory, sysinfo.library_name);
 		create_dir(directory); // Make sure SAVE_DIRECTORY/savestates/sysinfo.library_name exists
 	}
-	snprintf(state_filepath, size, "%s/%s.state%c", directory, basename, save_slot);
-	return save_slot;
+	snprintf(state_filepath, size, "%s/%s.sa%d", directory, basename, save_slot);
 }
 
-int state_load(const char *frontend_state_filepath)
-{
+int extract_slot(const char *path) {
+    int save_slot = slot_state;
+    size_t len = strlen(path);
+
+    size_t i = len;
+    while (i > 0 && isdigit((unsigned char)path[i - 1])) {
+        i--;
+    }
+
+    if (i < len) {
+        save_slot = atoi(&path[i]);
+    }
+
+    return save_slot;
+}
+
+
+int wrap_state_load(const char *frontend_state_filepath) {
+    return state_load(extract_slot(frontend_state_filepath));
+}
+
+int wrap_state_save(const char *frontend_state_filepath) {
+	// Make sure frontend_state_filepath directory exists
+	if (strlen(frontend_state_filepath) != 0) { 
+		char frontend_state_directory[MAXPATH];
+		strcpy(frontend_state_directory, frontend_state_filepath);
+		char *last_slash = strrchr(frontend_state_directory, '/');
+		*last_slash = '\0';
+		create_dir(frontend_state_directory);
+	}
+    return state_save(extract_slot(frontend_state_filepath), state_framebuffer, state_fb_width, state_fb_height);
+}
+
+int state_load(int save_slot) {
 	char state_filepath[MAXPATH];
-	char slot = build_state_filepath(state_filepath, sizeof(state_filepath), s_game_filepath, frontend_state_filepath);
+	build_state_filepath(state_filepath, sizeof(state_filepath), s_game_filepath, save_slot);
 	xlog("state_load: file=%s\n", state_filepath);
 
 	FILE *file = fopen(state_filepath, "rb");
@@ -1225,16 +1372,13 @@ int state_load(const char *frontend_state_filepath)
 
 	free(data);
 
-	if(g_per_state_srm){
-		load_srm(slot);
-	}
+	if(g_per_state_srm) load_srm(save_slot);
 	return 1;
 }
 
-int state_save(const char *frontend_state_filepath)
-{
+int state_save(int save_slot, uint16_t* emu_fb, uint32_t fb_width, uint32_t fb_height) {
 	char state_filepath[MAXPATH];
-	char slot = build_state_filepath(state_filepath, sizeof(state_filepath), s_game_filepath, frontend_state_filepath);
+	build_state_filepath(state_filepath, sizeof(state_filepath), s_game_filepath, save_slot);
 	xlog("state_save: file=%s\n", state_filepath);
 
 	FILE *file = fopen(state_filepath, "wb");
@@ -1253,9 +1397,13 @@ int state_save(const char *frontend_state_filepath)
 
 	fs_sync(state_filepath);
 
-	if(g_per_state_srm){
-		save_srm(slot);
-	}
+	if(g_per_state_srm) save_srm(save_slot);
+
+	// Save an rgb565 image of the state framebuffer
+	char bmp_filepath[MAXPATH];
+    snprintf(bmp_filepath, sizeof(bmp_filepath), "%s.bmp", state_filepath);
+	save_bmp(emu_fb, fb_width, fb_height, bmp_filepath);
+
 	return 1;
 }
 
@@ -1321,8 +1469,12 @@ void wrap_retro_deinit(void)
 	retro_deinit();
 	config_free();
 
-	if (rgb565_darken_buffer) free(rgb565_darken_buffer);
-	if (s_rgb565_convert_buffer) free(s_rgb565_convert_buffer);
+	free(state_framebuffer);
+	state_framebuffer = NULL;
+	free(rgb565_darken_buffer);
+	rgb565_darken_buffer = NULL;
+	free(s_rgb565_convert_buffer);
+	s_rgb565_convert_buffer = NULL;
 }
 
 size_t mono_mix_audio_batch_cb(const int16_t *data, size_t frames)
@@ -1413,39 +1565,46 @@ static void dummy_retro_run(void)
 	run_game("/mnt/sda1/ROMS/menu;p.gba", 0);
 }
 
-void darken_rgb565_buffer(const void* buffer, unsigned width, unsigned height, uint8_t darken_percentage)
-{
+void darken_rgb565_buffer(const void* buffer, unsigned width, unsigned height, size_t pitch_bytes, uint8_t darken_percentage) {
     const uint16_t* src = (const uint16_t*)buffer;
     uint16_t* dst = rgb565_darken_buffer;
-    unsigned pixel_count = width * height;
 
     // Convert darken_percentage (0-100) to darken_factor_256 (0-255)
-	uint8_t darken_factor_256 = ((100 - darken_percentage) * 255) / 100;
+    uint8_t darken_factor_256 = ((100 - darken_percentage) * 255) / 100;
 
-    for (unsigned i = 0; i < pixel_count; i++)
-    {
-        uint16_t pixel = src[i];
+    for (unsigned y = 0; y < height; y++) {
+        const uint16_t* src_row = (const uint16_t*)((const uint8_t*)src + y * pitch_bytes);
+        uint16_t* dst_row = dst + y * width;
 
-        // Extract components
-        uint8_t r5 = (pixel >> 11) & 0x1F;
-        uint8_t g6 = (pixel >> 5) & 0x3F;
-        uint8_t b5 = pixel & 0x1F;
+        for (unsigned x = 0; x < width; x++) {
+            uint16_t pixel = src_row[x];
 
-        // Darken components with integer math
-        r5 = (r5 * darken_factor_256) >> 8;
-        g6 = (g6 * darken_factor_256) >> 8;
-        b5 = (b5 * darken_factor_256) >> 8;
+            // Extract RGB components
+            uint8_t r5 = (pixel >> 11) & 0x1F;
+            uint8_t g6 = (pixel >> 5) & 0x3F;
+            uint8_t b5 = pixel & 0x1F;
 
-        // Repack components
-        dst[i] = (r5 << 11) | (g6 << 5) | b5;
+            // Darken components
+            r5 = (r5 * darken_factor_256) >> 8;
+            g6 = (g6 * darken_factor_256) >> 8;
+            b5 = (b5 * darken_factor_256) >> 8;
+
+            // Repack components
+            dst_row[x] = (r5 << 11) | (g6 << 5) | b5;
+        }
     }
+}
+
+void handle_rgb565_darken(const void *data, unsigned width, unsigned height, size_t pitch) {
+	darken_rgb565_buffer(data, width, height, pitch, g_darken_percentage);
+	retro_video_refresh_cb(rgb565_darken_buffer, width, height, width * 2);
 }
 
 void wrap_video_refresh_cb(const void *data, unsigned width, unsigned height, size_t pitch)
 {
 	if (g_show_fps) {
 		*fw_fps_counter_enable = 1;
-		g_fps_counter = true; 
+		if (!g_fps_counter) g_fps_counter = true; 
 		static uint32_t prev_msec = 0;
 		static int count_all = 0;
 		static int count_not_skipped = 0;
@@ -1456,103 +1615,21 @@ void wrap_video_refresh_cb(const void *data, unsigned width, unsigned height, si
 		if (data)
 			++count_not_skipped;
 
-		if (curr_msec - prev_msec > 1000)
-		{
+		if (curr_msec - prev_msec > 1000) {
 			// im not sure that using floats math will calc the fps much more accurately
 			// float sec = ((curr_msec - prev_msec) / 1000.0f);
 			// *fw_fps_counter1 = count_not_skipped / sec;
 			// fps_counter2 = count_all / sec;
 
-			sprintf(fw_fps_counter_format, "%2d/%2d", count_not_skipped, count_all);
+			if (os_get_tick_count() - g_osd_time > 1000) sprintf(fw_fps_counter_format, "%2d/%2d", count_not_skipped, count_all);
 
 			prev_msec = curr_msec;
 			count_all = 0;
 			count_not_skipped = 0;
 		}
 	}
-
-    if (capture_screenshot && data) {
-        unsigned char* framebuffer = (unsigned char*)data;
-        unsigned char* img_data = (unsigned char*)malloc(width * height * 3);
-
-        if (g_xrgb888) {
-            // If it's XRGB8888 format (32-bit per pixel), we need to extract R, G, B components
-            for (unsigned i = 0; i < width * height; i++) {
-                uint32_t color = ((uint32_t*)data)[i];
-
-                // Extract RGB components
-                uint8_t r = (color >> 16) & 0xFF;
-                uint8_t g = (color >> 8) & 0xFF;
-                uint8_t b = color & 0xFF;
-
-                // Store in img_data (24-bit color, RGB order)
-                img_data[i * 3 + 0] = b;
-                img_data[i * 3 + 1] = g;
-                img_data[i * 3 + 2] = r;
-            }
-        } else {
-            // If it's RGB565 format, convert to RGB888 (24-bit)
-            for (unsigned i = 0; i < width * height; i++) {
-                uint16_t color = ((uint16_t*)data)[i];
-
-                // Extract RGB565 components
-                uint8_t r = (color >> 11) & 0x1F;
-                uint8_t g = (color >> 5) & 0x3F;
-                uint8_t b = color & 0x1F;
-
-                // Convert to 8-bit RGB (scale 5-bit to 8-bit)
-                r = (r << 3) | (r >> 2);
-                g = (g << 2) | (g >> 4);
-                b = (b << 3) | (b >> 2);
-
-                // Store in img_data (24-bit color, RGB order)
-                img_data[i * 3 + 0] = b;  
-                img_data[i * 3 + 1] = g;  
-                img_data[i * 3 + 2] = r; 
-            }
-        }
-
-        // BMP Header setup
-        BMPHeader bmp_header = {0};
-        BMPInfoHeader bmp_info_header = {0};
-
-        bmp_header.bfType = 0x4D42;  // 'BM' in little-endian
-        bmp_header.bfOffBits = sizeof(BMPHeader) + sizeof(BMPInfoHeader);
-        bmp_header.bfSize = bmp_header.bfOffBits + width * height * 3;
-
-        bmp_info_header.biSize = sizeof(BMPInfoHeader);
-        bmp_info_header.biWidth = width;
-        bmp_info_header.biHeight = -height;  // Negative height to indicate top-down BMP
-        bmp_info_header.biPlanes = 1;
-        bmp_info_header.biBitCount = 24;  // 24 bits per pixel (RGB)
-        bmp_info_header.biSizeImage = width * height * 3;
-
-        char filename[MAXPATH];
-		char basename[MAXPATH];
-		fill_pathname_base(basename, s_game_filepath, sizeof(basename));
-		path_remove_extension(basename);
-        sprintf(filename, "/mnt/sda1/%s_screenshot_%d.bmp", basename, screenshot_counter);
-
-        FILE *bmp_file = fopen(filename, "wb");
-        if (bmp_file) {
-            // Write BMP header and info header
-            fwrite(&bmp_header, sizeof(BMPHeader), 1, bmp_file);
-            fwrite(&bmp_info_header, sizeof(BMPInfoHeader), 1, bmp_file);
-
-            fwrite(img_data, 1, width * height * 3, bmp_file);
-
-            fclose(bmp_file);
-            xlog("Screenshot saved to %s\n", filename);
-			g_osd_small_messages ? sprintf(osd_message, "Saved") : sprintf(osd_message, "Screenshot Saved");
-			show_osd_message(osd_message);
-        } else xlog("Failed to save screenshot\n");
-
-        free(img_data);
-        screenshot_counter++;
-        capture_screenshot = false;
-    }
-
-	if (!rgb565_darken_buffer || width != buffer_prev_width || height != buffer_prev_height) { // AV Out changes resolution?
+	
+	if (!rgb565_darken_buffer || width != buffer_prev_width || height != buffer_prev_height) {
     	if (rgb565_darken_buffer) free(rgb565_darken_buffer);
 
     	rgb565_darken_buffer = malloc(width * height * 2);
@@ -1562,13 +1639,11 @@ void wrap_video_refresh_cb(const void *data, unsigned width, unsigned height, si
 
 	if (g_xrgb888) { //TODO: add darkening filter support
 		convert_xrgb8888_to_rgb565((void*)data, width, height, pitch);
-		retro_video_refresh_cb(s_rgb565_convert_buffer, width, height, width * 2);		// each pixel is now 16bit, so pass the pitch as width*2
+		// each pixel is now 16bit, so pass the pitch as width*2
+		if (data && g_enable_darken_filter) handle_rgb565_darken(s_rgb565_convert_buffer, width, height, width * 2);
+		else retro_video_refresh_cb(s_rgb565_convert_buffer, width, height, width * 2);
 	} else {
-		if (data && g_enable_darken_filter) {
-			darken_rgb565_buffer(data, width, height, g_darken_percentage);
-			retro_video_refresh_cb(rgb565_darken_buffer, width, height, pitch);
-		} else { // Handle null data or no filter
-			retro_video_refresh_cb(data, width, height, pitch);
-		}
+		if (data && g_enable_darken_filter) handle_rgb565_darken(data, width, height, pitch);
+		else retro_video_refresh_cb(data, width, height, pitch);
 	}
 }

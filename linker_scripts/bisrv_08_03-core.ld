@@ -103,6 +103,10 @@ ptr_gs_run_game_name = 0x8099bad0;
 ptr_gs_run_game_file = 0x8099ba8c;
 ptr_gs_run_folder = 0x8099bab8;
 
+gp_run_osd_data = 0x80d06538;
+g_run_osd_width = 0x80d0653c;
+g_run_osd_height = 0x80d06540;
+
 /* HiChip's hardware wired to LCD for UARTless debug.c */
 PINMUXL	= 0xb88004a0;
 PINMUXT	= 0xb8800500;

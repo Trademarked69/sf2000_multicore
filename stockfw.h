@@ -96,4 +96,8 @@ extern char *ptr_gs_run_game_name;
 extern char *ptr_gs_run_game_file;
 extern char *ptr_gs_run_folder;
 
+extern uint16_t* gp_run_osd_data;
+extern uint32_t g_run_osd_width;
+extern uint32_t g_run_osd_height;
+
 #endif
