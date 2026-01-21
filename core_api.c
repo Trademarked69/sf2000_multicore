@@ -1314,7 +1314,7 @@ void build_state_filepath(char *state_filepath, size_t size, const char *game_fi
 		strcat(directory, sysinfo.library_name);
 		create_dir(directory); // Make sure SAVE_DIRECTORY/savestates/sysinfo.library_name exists
 	}
-	snprintf(state_filepath, size, "%s/%s.sa%d", directory, basename, save_slot);
+	snprintf(state_filepath, size, "%s/%s.state%d", directory, basename, save_slot);
 }
 
 int extract_slot(const char *path) {
