@@ -398,7 +398,7 @@ void video_options(config_file_t *conf)
 }
 
 void video_cleanup(void) {
-	if (mxmv == 0) get_mxmv();
+	if (madctl == 0) get_madctl();
 	
 	if (tearing_fix == ROTATE || scaling_mode != STOCK) {
 		patch__run_screen_write(&run_osd_region_write);
@@ -413,7 +413,7 @@ void video_cleanup(void) {
 	apply_rgb_timings();
 
 	patch__st7789v_caset_raset(320, 240);
-	lcd_memory_data_access_ctl(mxmv);
+	lcd_memory_data_access_ctl(madctl);
 	// fixable by parsing m_st7789v_init
 
 	swap_region_width_height(); // second time thus cancels out

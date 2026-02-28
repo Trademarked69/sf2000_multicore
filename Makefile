@@ -35,7 +35,7 @@ endif
 ifeq ($(FROGGY_TYPE), SF2000)
 	BISRVLDSCRIPT := bisrv_08_03.ld
 	CORELDSCRIPT := bisrv_08_03-core.ld
-	CFLAGS += -DSF2000 -DFROGGY_MXMV=0x60
+	CFLAGS += -DSF2000 -DFROGGY_MADCTL=0x60
 	ifeq ($(SCREEN_SWAP), FALSE)
 		BISRVFILE := bisrv_08_03.asd
 	else
@@ -45,7 +45,7 @@ ifeq ($(FROGGY_TYPE), SF2000)
 else ifeq ($(FROGGY_TYPE),GB300V2)
 	BISRVLDSCRIPT := bisrv_GB300_V2.ld
 	CORELDSCRIPT := bisrv_GB300_V2-core.ld
-	CFLAGS += -DGB300V2 -DFROGGY_MXMV=0x28
+	CFLAGS += -DGB300V2 -DFROGGY_MADCTL=0x28
 	ifeq ($(SCREEN_SWAP), FALSE)
 #		GB300 screen
 		BISRVFILE := bisrv_GB300_V2.asd
@@ -181,9 +181,9 @@ install:
 	-$(call copy_if_updated,"bisrv.asd","sdcard/$(FROGGY_TYPE)$(if $(filter TRUE,$(SCREEN_SWAP)),-screen_swap)/bios/bisrv.asd")
 	@if [ "$(SCREEN_SWAP)" = "TRUE" ]; then \
 		if [ "$(FROGGY_TYPE)" = "SF2000" ]; then \
-			printf '\x28' > "sdcard/$(FROGGY_TYPE)-screen_swap/bios/mxmv.bin"; \
+			printf '\x28' > "sdcard/$(FROGGY_TYPE)-screen_swap/bios/madctl.bin"; \
 		elif [ "$(FROGGY_TYPE)" = "GB300V2" ]; then \
-			printf '\x60' > "sdcard/$(FROGGY_TYPE)-screen_swap/bios/mxmv.bin"; \
+			printf '\x60' > "sdcard/$(FROGGY_TYPE)-screen_swap/bios/madctl.bin"; \
 		fi; \
 	fi
 	-$(call copy_if_updated,"core_87000000","sdcard/$(FROGGY_TYPE)/cores/$(CONSOLE).sf2k")
