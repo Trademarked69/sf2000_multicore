@@ -1,14 +1,16 @@
 #!/bin/bash
+./buildcoresworking-sf2000.sh
 cd ../../
-
-assets/scripts/buildcoresworking-sf2000.sh
 make clean
 make SCREEN_SWAP=TRUE # Screen swap bisrv
+cd assets/scripts
 
-assets/scripts/cleancoresworking.sh
+./cleancoresworking.sh
 
-assets/scripts/buildcoresworking-gb300.sh
+./buildcoresworking-gb300.sh
+cd ../../
 make clean
 make FROGGY_TYPE=GB300V2 SCREEN_SWAP=TRUE # Screen swap bisrv
+cd assets/scripts
 
 true

@@ -97,7 +97,7 @@ make FROGGY_TYPE=GB300V2 CONSOLE="Vice c64"     CORE=cores/working-cores/libretr
 make clean FROGGY_TYPE=GB300V2 CONSOLE="Vice c64"   CORE=cores/working-cores/libretro-vice EMUTYPE=x64 # Commodore CLEAN
 make clean FROGGY_TYPE=GB300V2 CONSOLE="Vice vic20" CORE=cores/working-cores/libretro-vice EMUTYPE=xvic # Commodore CLEAN
 make FROGGY_TYPE=GB300V2 CONSOLE="Vice vic20"   CORE=cores/working-cores/libretro-vice EMUTYPE=xvic # Commodore
-make clean FROGGY_TYPE=GB300V2 CONSOLE="Vice vic20" CORE=cores/working-cores/ibretro-vice EMUTYPE=xvic # Commodore CLEAN
+make clean FROGGY_TYPE=GB300V2 CONSOLE="Vice vic20" CORE=cores/working-cores/libretro-vice EMUTYPE=xvic # Commodore CLEAN
 make clean FROGGY_TYPE=GB300V2 CONSOLE="Frodo c64"  CORE=cores/working-cores/libretro-frodo EMUTYPE=frodo
 make FROGGY_TYPE=GB300V2 CONSOLE="Frodo c64"    CORE=cores/working-cores/libretro-frodo EMUTYPE=frodo
 make clean FROGGY_TYPE=GB300V2 CONSOLE="Frodo c64"  CORE=cores/working-cores/libretro-frodo EMUTYPE=frodo
@@ -122,6 +122,8 @@ make FROGGY_TYPE=GB300V2 CONSOLE="LowRes NX"    CORE=cores/lowres-nx/platform/Li
 
 make FROGGY_TYPE=GB300V2 CONSOLE="x48"          CORE=cores/libretro-x48 # HP48 Calculator
 make FROGGY_TYPE=GB300V2 CONSOLE="Tama"         CORE=cores/tamalibretro # Tamagotchi P1
+
+make FROGGY_TYPE=GB300V2 CONSOLE="Nogg"         CORE=cores/libretro-nogg
 
 # Extra (Shouldn't compile unless requested)
 #make FROGGY_TYPE=GB300V2 CONSOLE="CrocoDS"      CORE=cores/libretro-crocods # Amstrad - CPC

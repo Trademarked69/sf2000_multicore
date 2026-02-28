@@ -97,7 +97,7 @@ make CONSOLE="Vice c64"     CORE=cores/working-cores/libretro-vice EMUTYPE=x64 #
 make clean CONSOLE="Vice c64"   CORE=cores/working-cores/libretro-vice EMUTYPE=x64 # Commodore CLEAN
 make clean CONSOLE="Vice vic20" CORE=cores/working-cores/libretro-vice EMUTYPE=xvic # Commodore CLEAN
 make CONSOLE="Vice vic20"   CORE=cores/working-cores/libretro-vice EMUTYPE=xvic # Commodore
-make clean CONSOLE="Vice vic20" CORE=cores/working-cores/ibretro-vice EMUTYPE=xvic # Commodore CLEAN
+make clean CONSOLE="Vice vic20" CORE=cores/working-cores/libretro-vice EMUTYPE=xvic # Commodore CLEAN
 make clean CONSOLE="Frodo c64"  CORE=cores/working-cores/libretro-frodo EMUTYPE=frodo
 make CONSOLE="Frodo c64"    CORE=cores/working-cores/libretro-frodo EMUTYPE=frodo
 make clean CONSOLE="Frodo c64"  CORE=cores/working-cores/libretro-frodo EMUTYPE=frodo
@@ -122,6 +122,8 @@ make CONSOLE="LowRes NX"    CORE=cores/lowres-nx/platform/LibRetro # LowRes NX
 
 make CONSOLE="x48"          CORE=cores/libretro-x48 # HP48 Calculator
 make CONSOLE="Tama"         CORE=cores/tamalibretro # Tamagotchi P1
+
+make CONSOLE="Nogg"         CORE=cores/libretro-nogg
 
 # Extra (Shouldn't compile unless requested)
 #make CONSOLE="CrocoDS"      CORE=cores/libretro-crocods # Amstrad - CPC
