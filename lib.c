@@ -355,3 +355,72 @@ struct dirent *readdir(DIR *dir)
 	strncpy(d.d_name, buffer.d_name, sizeof(d.d_name));
 	return &d;
 }
+
+size_t strspn(const char *str, const char *accept) {
+    size_t length = 0;
+
+    while (*str) {
+        const char *temp = accept;
+        int found = 0;
+        
+        while (*temp) {
+            if (*str == *temp) {
+                found = 1;
+                break;
+            }
+            temp++;
+        }
+        
+		if (!found) {
+            break;
+        }
+
+        length++;
+        str++;
+    }
+
+    return length;
+}
+
+char *strpbrk(const char *str, const char *accept) {
+    while (*str) {
+        const char *temp = accept;
+        while (*temp) {
+            if (*str == *temp) {
+                return (char *)str;
+            }
+            temp++;
+        }
+        str++;
+    }
+    return NULL;
+}
+
+char *strtok_r(char *str, const char *delim, char **saveptr) {
+    if (saveptr == NULL) {
+        return NULL;
+    }
+
+    if (str == NULL) {
+        str = *saveptr;
+    }
+
+    str += strspn(str, delim);
+
+    if (*str == '\0') {
+        *saveptr = str;
+        return NULL;
+    }
+
+    char *token = str;
+    str = strpbrk(token, delim);
+
+    if (str == NULL) {
+        *saveptr = strchr(token, '\0');
+    } else {
+        *str = '\0';
+        *saveptr = str + 1;
+    }
+    
+    return token;
+}

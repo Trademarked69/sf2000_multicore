@@ -13,6 +13,9 @@ LCDFONT_OFFSET=0x2260
 LOADER_OFFSET=0x1500
 LOADER_ADDR=0x80001500
 LOADER_ADDR_MAX=0x80002180
+PATCHER_OFFSET=0x964494
+PATCHER_ADDR=0x80964494
+PATCHER_ADDR_MAX=0x8097BC18
 
 MIPS=/opt/mips32-mti-elf/2019.09-03-2/bin/mips-mti-elf-
 
@@ -74,6 +77,7 @@ CXX_LDFLAGS += -z max-page-size=32
 
 CORE_OBJS += lib.o debug.o video_sf2000.o
 LOADER_OBJS=init.o main.o debug.o
+PATCHER_OBJS=autoboot.o patcher.o debug.o lib.o
 
 # Default target
 ifneq ($(CORE),)
@@ -120,7 +124,14 @@ loader.elf: $(LOADER_OBJS)
 loader.bin: loader.elf
 	$(Q)$(OBJCOPY) -O binary -j .text -j .rodata -j .data loader.elf loader.bin
 
-bisrv.asd: loader.bin lcd_font.bin crc
+patcher.elf: $(PATCHER_OBJS)
+	@$(call echo_i,"compiling $@")
+	$(LD) -Map "$@".map $(LDFLAGS) -e __start -Ttext=$(PATCHER_ADDR) linker_scripts/autoboot.ld linker_scripts/$(BISRVLDSCRIPT) $(PATCHER_OBJS) -o patcher.elf
+
+patcher.bin: patcher.elf
+	$(OBJCOPY) -O binary -j .text -j .rodata -j .data patcher.elf patcher.bin
+
+bisrv.asd: loader.bin lcd_font.bin crc patcher.bin
 	@$(call echo_i,"patching $@")
 
 # check that loader's .bss does not exceeds LOADER_ADDR_MAX
@@ -134,6 +145,17 @@ bisrv.asd: loader.bin lcd_font.bin crc
 		echo "bss ending $${BSSEND}. still $$(( $(LOADER_ADDR_MAX) - $${BSSEND} )) bytes left" ; \
 	fi
 
+# check that patchers's .bss does not exceeds PATCHER_ADDR_MAX
+	@BSSEND=$(shell grep -w "_end =" patcher.elf.map | awk '{print $$1}'); \
+	if [ $$(($${BSSEND})) -gt $$(($(PATCHER_ADDR_MAX))) ]; then \
+		$(call echo_e,"error: patcher is too big. \
+		bss ending $${BSSEND} exceeds $(PATCHER_ADDR_MAX) by \
+		$$(( $${BSSEND} - $(PATCHER_ADDR_MAX) )) bytes") ; \
+		exit 1; \
+	else \
+		echo "bss ending $${BSSEND}. still $$(( $(PATCHER_ADDR_MAX) - $${BSSEND} )) bytes left" ; \
+	fi
+
 # check that lcd_font.bin has the anticipated size
 	@LCDFONT_SIZE=$(shell stat -c %s lcd_font.bin) ; \
 	if [ $${LCDFONT_SIZE} -ne 672 ]; then \
@@ -145,12 +167,15 @@ bisrv.asd: loader.bin lcd_font.bin crc
 
 	$(Q)dd if=loader.bin of=bisrv.asd bs=$$(($(LOADER_OFFSET))) seek=1 conv=notrunc 2>/dev/null
 
+	$(Q)dd if=patcher.bin of=bisrv.asd bs=$$(($(PATCHER_OFFSET))) seek=1 conv=notrunc 2>/dev/null
+
 	dd if=lcd_font.bin of=bisrv.asd bs=$$(($(LCDFONT_OFFSET))) seek=1 conv=notrunc
 
 	# note: this patch must match $(LOADER_ADDR)
 	# jal run_gba -> jal 0x80001500
 	if [ "$(FROGGY_TYPE)" = "SF2000" ]; then \
 		printf "\x40\x05\x00\x0C" | dd of=bisrv.asd bs=1 seek=$$((0x35a900)) conv=notrunc; \
+		printf "\x25\x91\x25\x08" | dd of=bisrv.asd bs=1 seek=$$((0x34631c)) conv=notrunc; \
 	elif [ "$(FROGGY_TYPE)" = "GB300V2" ]; then \
 		printf "\x40\x05\x00\x0C" | dd of=bisrv.asd bs=1 seek=$$((0x35ee10)) conv=notrunc; \
 	fi
@@ -205,6 +230,7 @@ clean:
 	-rm -f $(CORE_OBJS)
 	-rm -f $(LOADER_OBJS) lcd_font.o
 	-rm -f loader.elf loader.bin core.elf core.elf.map core_87000000
+	-rm -f patcher.elf patcher.bin patcher.o
 	-rm -f bisrv.asd crc
 	-rm -f libretro_core.a
 	@if [ -n "$(CORE)" ]; then \
