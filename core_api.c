@@ -1101,7 +1101,6 @@ bool wrap_retro_load_game(const struct retro_game_info* info) {
 	game_info_ext.persistent_data = false;
 	game_info_ext.full_path = info->path;
 	if (!sysinfo.need_fullpath || core_supports_rom_in_buffer) game_info_ext.data = buffer;
-	else game_info_ext.data = info->data;
 	game_info_ext.size = size;
 	game_info_ext.dir = dir;
 	game_info_ext.name = filename;
